@@ -1,4 +1,4 @@
-# folder partition and images separator (FPISeparator) 🖼 📝 ⚙️
+# folder partition and images separator (FPISeparator 1.0) 🖼 📝 ⚙️
 Repositório criado para ajudar na automação das rotulagens dos datasets, organizando pastas, imagens, jsons e outras funções. 
 
 1 - Executar -> python3 CreatePackages.py
