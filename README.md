@@ -13,7 +13,9 @@ Repositório criado para ajudar na automação das rotulagens dos datasets, orga
 
 5 - Nome das Pastas -> Na divisão de pastas será dividas pelo nome e no final o ID '_0,_1,_2,...'
 
-6 - Processar -> Iniciar a partição das pastas
+6 - Classes -> Adicione uma nova classe para cada linha(depois do comnado __ignore___background_)
+
+7 - Processar -> Iniciar a partição das pastas
 
 Repository created to help automate dataset labeling, organizing folders, images, jsons and other functions.
 
