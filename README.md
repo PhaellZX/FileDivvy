@@ -3,7 +3,7 @@ Repositório criado para ajudar na automação das rotulagens dos datasets, orga
 
 1 - Executar -> python3 CreatePackages.py
 
-![Example](https://github.com/PhaellZX/Automation_Labeling_Python/assets/48337836/44581a5c-7f50-4e77-9e92-84e939492f39)
+![Alt text](image.png)
 
 2 - Pasta de Origem -> Selecionar diretório que contém as imagens
 
