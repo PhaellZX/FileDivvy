@@ -1,7 +1,7 @@
 # FileDivvy - folder partition files separator 🖼 📝 ⚙️
 Program that takes a folder with several files and separates it into several folders with the defined number of files. This program helps anyone who wants to organize their datasets for annotation, for users of the labelme program.
 
-1 - Run -> python3 CreatePackages.py
+1 - Run -> python3 Main.py
 
 ![Alt text](image-1.png)
 
