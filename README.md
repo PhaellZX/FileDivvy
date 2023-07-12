@@ -1,21 +1,19 @@
 # FileDivvy - folder partition files separator 🖼 📝 ⚙️
-Repositório criado para ajudar na automação das rotulagens dos datasets, organizando pastas, imagens, jsons e outras funções. 
+Program that takes a folder with several files and separates it into several folders with the defined number of files. This program helps anyone who wants to organize their datasets for annotation, for users of the labelme program.
 
-1 - Executar -> python3 CreatePackages.py
+1 - Run -> python3 CreatePackages.py
 
-![Alt text](image.png)
+![Alt text](image-1.png)
 
-2 - Pasta de Origem -> Selecionar diretório que contém as imagens
+2 - Origin Folder -> Select directory that contains the images
 
-3 - Pasta de Destino -> Selecionar diretório onde será dividido as pastas 
+3 - Destination Folder -> Select the directory where the folders will be divided
 
-4 - Números de Imagens por Pacote -> número de imagens em cada pasta
+4 - Number of Images per Package -> number of images in each folder
 
-5 - Nome das Pastas -> Na divisão de pastas será dividas pelo nome e no final o ID '_0,_1,_2,...'
+5 - Folder Names -> When dividing folders, they will be divided by name and at the end the ID '_0,_1,_2,...'
 
-6 - Classes -> Adicione uma nova classe para cada linha(depois do comnado __ignore___background_)
+6 - Classes -> Add a new class for each line (after the __ignore___background_ command)
 
-7 - Processar -> Iniciar a partição das pastas
-
-Repository created to help automate dataset labeling, organizing folders, images, jsons and other functions.
+7 - Process -> Start partitioning folders
 
