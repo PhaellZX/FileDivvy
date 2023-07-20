@@ -63,7 +63,7 @@ def processar():
 # Criação da janela principal
 window = tk.Tk()
 window.title("FileDivvy")
-window.geometry("400x550")
+window.geometry("400x600")
 window.resizable(False, False)
 
 # Personalizando o estilo da janela
@@ -74,6 +74,9 @@ def create_label(parent, text):
     return tk.Label(parent, text=text, bg="#282C34", fg="#FFFFFF", font=("Arial", 12, "bold"))
 
 # Componentes da GUI
+
+titulo_label = tk.Label(window, text="Separador de imagens por pastas", bg="#282C34", fg="#FFFFFF", font=("Arial", 16, "bold"))
+titulo_label.pack(pady=10)
 
 pasta_origem_label = create_label(window, "Pasta de Origem:")
 pasta_origem_label.pack()
