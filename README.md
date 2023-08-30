@@ -1,7 +1,13 @@
 # FileDivvy - folder partition files separator 🖼 📝 ⚙️
 Program that takes a folder with several files and separates it into several folders with the defined number of files. This program helps anyone who wants to organize their datasets for annotation, for users of the labelme program.
 
-1 - Run -> python3 Main.py
+Run -> python FileDivvyApp.py.py
+
+MENU
+
+![image](https://github.com/PhaellZX/FileDivvy/assets/48337836/1090afb5-0f50-4152-ac7a-2d3308f08494)
+
+SEPARATOR FOLDERS AND IMAGES
 
 ![Alt text](image-1.png)
 
@@ -16,4 +22,17 @@ Program that takes a folder with several files and separates it into several fol
 6 - Classes -> Add a new class for each line (after the __ignore___background_ command)
 
 7 - Process -> Start partitioning folders
+
+VIDEO PARTITION FRAMES
+
+![image](https://github.com/PhaellZX/FileDivvy/assets/48337836/0ef45284-403a-40b6-bb76-5b6f9944f387)
+
+1 - Go to the source folder of the video
+
+2 - choose the path where you will partition the frames
+
+3 - Enter the number of frames to partition
+
+4 - Execute(Processar)
+
 
