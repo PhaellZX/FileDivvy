@@ -54,36 +54,36 @@ window.resizable(False, False)
 window.configure(bg="#282C34")
 
 # Componentes da GUI
-titulo_label = tk.Label(window, text="Separar Video em Frames", bg="#282C34", fg="#FFFFFF", font=("Arial", 16, "bold"))
+titulo_label = tk.Label(window, text="Separate Video into Frames", bg="#282C34", fg="#FFFFFF", font=("Arial", 16, "bold"))
 titulo_label.pack(pady=10)
 
-pasta_origem_label = tk.Label(window, text="Pasta de Origem (Vídeo):", bg="#282C34", fg="#FFFFFF", font=("Arial", 12))
+pasta_origem_label = tk.Label(window, text="Source Folder (Video):", bg="#282C34", fg="#FFFFFF", font=("Arial", 12))
 pasta_origem_label.pack()
 
 pasta_origem_entry = tk.Entry(window, width=40, font=("Arial", 12))
 pasta_origem_entry.pack()
 
-selecionar_origem_button = tk.Button(window, text="Selecionar", command=selecionar_pasta_origem, font=("Arial", 12, "bold"), bg="#000033", fg="#FFFFFF")
+selecionar_origem_button = tk.Button(window, text="Select", command=selecionar_pasta_origem, font=("Arial", 12, "bold"), bg="#000033", fg="#FFFFFF")
 selecionar_origem_button.pack(pady=10)
 
-pasta_destino_label = tk.Label(window, text="Pasta de Destino:", bg="#282C34", fg="#FFFFFF", font=("Arial", 12))
+pasta_destino_label = tk.Label(window, text="Destination Folder:", bg="#282C34", fg="#FFFFFF", font=("Arial", 12))
 pasta_destino_label.pack()
 
 pasta_destino_entry = tk.Entry(window, width=40, font=("Arial", 12))
 pasta_destino_entry.pack()
 
-selecionar_destino_button = tk.Button(window, text="Selecionar", command=selecionar_pasta_destino, font=("Arial", 12), bg="#000033", fg="#FFFFFF")
+selecionar_destino_button = tk.Button(window, text="Select", command=selecionar_pasta_destino, font=("Arial", 12), bg="#000033", fg="#FFFFFF")
 selecionar_destino_button.pack(pady=10)
 
 # Campo para definir o número de frames
-num_frames_label = tk.Label(window, text="Número de Frames:", bg="#282C34", fg="#FFFFFF", font=("Arial", 12))
+num_frames_label = tk.Label(window, text="Number of Frames:", bg="#282C34", fg="#FFFFFF", font=("Arial", 12))
 num_frames_label.pack()
 
 num_frames_entry = tk.Entry(window, width=10, font=("Arial", 12))
 num_frames_entry.pack()
 
 # Botão de processar
-processar_button = tk.Button(window, text="Processar", command=lambda: processar_frames(), font=("Arial", 14, "bold"), bg="#000033", fg="#FFFFFF")
+processar_button = tk.Button(window, text="Generate Frames!", command=lambda: processar_frames(), font=("Arial", 14, "bold"), bg="#000033", fg="#FFFFFF")
 processar_button.pack(pady=20)
 
 # Função para processar os frames
@@ -92,9 +92,12 @@ def processar_frames():
     pasta_destino = pasta_destino_entry.get().replace("\\", "/")
     num_frames = int(num_frames_entry.get())
 
+    status_label.config(text="Generating Frames...")
+    window.update()  # Atualiza a interface para exibir imediatamente a mensagem
+
     separar_frames(pasta_origem, pasta_destino, num_frames)
 
-    status_label.config(text="Processamento concluído!")
+    status_label.config(text="Processing completed!")
 
 # Status da execução
 status_label = tk.Label(window, text="", bg="#282C34", fg="#FFFFFF", font=("Arial", 12))

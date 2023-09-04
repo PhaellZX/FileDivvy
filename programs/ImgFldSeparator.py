@@ -56,8 +56,12 @@ def processar():
     nome_pasta = nome_pasta_entry.get()
     classes = classes_entry.get("1.0", tk.END).split("\n")
 
+    # Atualiza a label de status para "Gerando Pastas..."
+    status_label.config(text="Generating Folders...")
+    window.update()  # Atualiza a interface para exibir imediatamente a mensagem
+
     separar_imagens(pasta_origem, pasta_destino, imagens_por_pacote, nome_pasta, classes)
-    status_label.config(text="Processamento concluído!")
+    status_label.config(text="Processing completed!")
 
 
 # Criação da janela principal
@@ -75,47 +79,47 @@ def create_label(parent, text):
 
 # Componentes da GUI
 
-titulo_label = tk.Label(window, text="Separador de imagens por pastas", bg="#282C34", fg="#FFFFFF", font=("Arial", 16, "bold"))
+titulo_label = tk.Label(window, text="Folder files separator", bg="#282C34", fg="#FFFFFF", font=("Arial", 16, "bold"))
 titulo_label.pack(pady=10)
 
-pasta_origem_label = create_label(window, "Pasta de Origem:")
+pasta_origem_label = create_label(window, "Source Folder:")
 pasta_origem_label.pack()
 
 pasta_origem_entry = tk.Entry(window, width=40, font=("Arial", 12))
 pasta_origem_entry.pack()
 
-selecionar_origem_button = tk.Button(window, text="Selecionar", command=selecionar_pasta_origem,  font=("Arial", 12, "bold"), bg="#000033", fg="#FFFFFF")
+selecionar_origem_button = tk.Button(window, text="Select", command=selecionar_pasta_origem,  font=("Arial", 12, "bold"), bg="#000033", fg="#FFFFFF")
 selecionar_origem_button.pack()
 
-pasta_destino_label = create_label(window, "Pasta de Destino:")
+pasta_destino_label = create_label(window, "Destination Folder:")
 pasta_destino_label.pack()
 
 pasta_destino_entry = tk.Entry(window, width=40, font=("Arial", 12))
 pasta_destino_entry.pack()
 
-selecionar_destino_button = tk.Button(window, text="Selecionar", command=selecionar_pasta_destino,  font=("Arial", 12), bg="#000033", fg="#FFFFFF")
+selecionar_destino_button = tk.Button(window, text="Select", command=selecionar_pasta_destino,  font=("Arial", 12), bg="#000033", fg="#FFFFFF")
 selecionar_destino_button.pack()
 
-imagens_por_pacote_label = create_label(window, "Número de Imagens por Pacote:")
+imagens_por_pacote_label = create_label(window, "Number of Files per Pack:")
 imagens_por_pacote_label.pack()
 
 imagens_por_pacote_entry = tk.Entry(window, width=10, font=("Arial", 12))
 imagens_por_pacote_entry.pack()
 
-nome_pasta_label = create_label(window, "Nome da Pasta:")
+nome_pasta_label = create_label(window, "Folder Name:")
 nome_pasta_label.pack()
 
 nome_pasta_entry = tk.Entry(window, width=40, font=("Arial", 12))
 nome_pasta_entry.pack()
 
-classes_label = create_label(window, "Classes (uma por linha):")
+classes_label = create_label(window, "Classes (one per line):")
 classes_label.pack()
 
 classes_entry = tk.Text(window, height=10, width=40, font=("Arial", 12))
 classes_entry.insert(0.0, "__ignore__\n_background_\n")
 classes_entry.pack()
 
-processar_button = tk.Button(window, text="Processar", command=processar,  font=("Arial", 12), bg="#000033", fg="#FFFFFF")
+processar_button = tk.Button(window, text="Generate Folders!", command=processar,  font=("Arial", 12), bg="#000033", fg="#FFFFFF")
 processar_button.pack()
 
 # Status da execução
