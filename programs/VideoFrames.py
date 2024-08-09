@@ -9,11 +9,11 @@ def selecionar_pasta_origem():
     pasta_origem_entry.insert(tk.END, pasta_origem.replace("/", "\\"))
 
 def selecionar_pasta_destino():
-    pasta_destino = filedialog.askdirectory()
+    pasta_destino = filedialog.askdirectory()  
     pasta_destino_entry.delete(0, tk.END)
     pasta_destino_entry.insert(tk.END, pasta_destino.replace("/", "\\"))
 
-def separar_frames(pasta_origem, pasta_destino, num_frames):
+def separar_frames(pasta_origem, pasta_destino):
     # Abrir o arquivo de vídeo
     video = cv2.VideoCapture(pasta_origem)
 
@@ -23,9 +23,9 @@ def separar_frames(pasta_origem, pasta_destino, num_frames):
 
     # Obter a taxa de frames por segundo do vídeo
     fps = int(video.get(cv2.CAP_PROP_FPS))
-
-    # Calcular o intervalo para separar os frames
-    intervalo = int(video.get(cv2.CAP_PROP_FRAME_COUNT) / num_frames)
+    
+    # Calcular o intervalo em frames para 1 segundo
+    intervalo_frames = fps
 
     frame_count = 0
     while True:
@@ -37,7 +37,7 @@ def separar_frames(pasta_origem, pasta_destino, num_frames):
             break
 
         # Salvar o frame como uma imagem no diretório de saída
-        if frame_count % intervalo == 0:
+        if frame_count % intervalo_frames == 0:
             output_path = os.path.join(pasta_destino, f"frame_{frame_count}.png")
             cv2.imwrite(output_path, frame)
 
@@ -75,13 +75,6 @@ pasta_destino_entry.pack()
 selecionar_destino_button = tk.Button(window, text="Select", command=selecionar_pasta_destino, font=("Arial", 12), bg="#000033", fg="#FFFFFF")
 selecionar_destino_button.pack(pady=10)
 
-# Campo para definir o número de frames
-num_frames_label = tk.Label(window, text="Number of Frames:", bg="#282C34", fg="#FFFFFF", font=("Arial", 12))
-num_frames_label.pack()
-
-num_frames_entry = tk.Entry(window, width=10, font=("Arial", 12))
-num_frames_entry.pack()
-
 # Botão de processar
 processar_button = tk.Button(window, text="Generate Frames!", command=lambda: processar_frames(), font=("Arial", 14, "bold"), bg="#000033", fg="#FFFFFF")
 processar_button.pack(pady=20)
@@ -90,12 +83,11 @@ processar_button.pack(pady=20)
 def processar_frames():
     pasta_origem = pasta_origem_entry.get().replace("\\", "/")
     pasta_destino = pasta_destino_entry.get().replace("\\", "/")
-    num_frames = int(num_frames_entry.get())
 
     status_label.config(text="Generating Frames...")
     window.update()  # Atualiza a interface para exibir imediatamente a mensagem
 
-    separar_frames(pasta_origem, pasta_destino, num_frames)
+    separar_frames(pasta_origem, pasta_destino)
 
     status_label.config(text="Processing completed!")
 
