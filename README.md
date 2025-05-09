@@ -77,7 +77,7 @@ python FileDivvyApp.py
 ## 📸 GUI Preview
 
 **Main Interface:**  
-![alt text](images/readme/image.png)
+![alt text](images/readme/image-3.png)
 
 **Image Folder Separator:**
 ![alt text](images/readme/image-1.png)
