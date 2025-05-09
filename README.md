@@ -1,36 +1,95 @@
-# FileDivvy - folder partition files separator 🖼 📝 ⚙️
+# 🖼️ FileDivvy – Image Splitter & Auto-Annotation Tool
 
-Program that takes a folder with several files and separates it into several folders with the defined number of files. This program helps anyone who wants to organize their datasets for annotation, for users of the labelme program.
+**FileDivvy** is a desktop application to help organize and annotate image datasets efficiently. Whether you need to split large folders of images or generate bounding box annotations automatically using YOLOv8, FileDivvy simplifies the process.
 
-![Alt text](image.png)
+## ⚙️ Features
 
-Run -> python FileDivvyApp.py.py
+- ✅ **Split image folders** into multiple subfolders, each with a fixed number of images.
+- ✅ **Automatically annotate images** using a YOLOv8 model.
+- ✅ Choose between **LabelMe** and **Label Studio** output formats.
+- ✅ Simple and intuitive **graphical interface (GUI)** using Tkinter.
 
-SEPARATOR FOLDERS AND FILES
+---
 
-![Alt text](image-1.png)
+## 🚀 How to Run
 
-1 - Origin Folder -> Select directory that contains the images
+```bash
+python FileDivvyApp.py
+```
 
-2 - Destination Folder -> Select the directory where the folders will be divided
+> Requires Python 3.7+, `ultralytics`, `opencv-python`, and `tkinter`.
 
-3 - Number of Images per Package -> number of images in each folder
+---
 
-4 - Folder Names -> When dividing folders, they will be divided by name and at the end the ID '_0,_1,_2,...'
+## 🧩 Function 1: Split Images into Subfolders
 
-5 - Classes -> Add a new class for each line (after the _ignore___background command)
+### Step-by-Step:
 
-6 - Process -> Start partitioning folders
+1. **Select the Input Folder**  
+   Choose the folder that contains your image files.
 
-VIDEO PARTITION FRAMES
+2. **Select the Output Folder**  
+   This is where the split folders will be created.
 
-![Alt text](image-2.png)
+3. **Set Images per Folder**  
+   Define how many images each subfolder should contain.
 
-1 - Go to the source folder of the video
+4. **Set Folder Name Prefix**  
+   Subfolders will be named like `prefix_0`, `prefix_1`, etc.
 
-2 - choose the path where you will partition the frames
+5. **Click Process**  
+   The tool will create and fill the folders accordingly.
 
-3 - Enter the number of frames to partition
+---
 
-4 - Execute(Processar)
+## 🔍 Function 2: Auto-Annotate Images (Bounding Boxes)
 
+### Step-by-Step:
+
+1. **Select the Input Folder**  
+   Choose the folder with images to annotate.
+
+2. **Select the Classes File**  
+   A `.txt` file with the class names you want to detect (one per line).
+
+3. **Select the Output Folder**  
+   Where the annotation `.json` files will be saved.
+
+4. **Choose the Annotation Format**  
+   - `LabelMe` – JSON format compatible with the LabelMe tool.  
+   - `Label Studio` – JSON format for use with Label Studio.
+
+5. **Click "Run Detection!"**  
+   The YOLOv8 model will detect objects and create the annotation files.
+
+> Only objects matching your selected classes (from the `.txt`) and with confidence ≥ 0.5 will be saved.
+
+---
+
+## 🧠 Under the Hood
+
+- Uses the **YOLOv8n** model from the [Ultralytics](https://github.com/ultralytics/ultralytics) library.
+- Supports `.jpg`, `.jpeg`, and `.png` formats.
+- Runs detection in a separate thread to keep the GUI responsive.
+
+---
+
+## 📸 GUI Preview
+
+**Main Interface:**  
+![alt text](images/readme/image.png)
+
+**Image Folder Separator:**
+![alt text](images/readme/image-1.png)
+
+**Labeler Annotation Auto:**
+![alt text](images/readme/image-2.png)
+---
+
+## 📁 Example Use Case
+
+You're working with a huge dataset of images for a computer vision project. With FileDivvy, you can:
+
+- Split the dataset into smaller, labeled chunks for better organization or parallel labeling.
+- Auto-generate bounding box annotations with one click.
+- Export to your favorite annotation tool format.

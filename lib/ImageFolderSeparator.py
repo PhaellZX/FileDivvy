@@ -2,21 +2,23 @@ import os
 import shutil
 import tkinter as tk
 from tkinter import filedialog
-from PIL import ImageTk, Image  
-from tkinter import ttk
+from threading import Thread
 
 def split_images(source_folder, destination_folder, images_per_pack, pack_name, class_list):
-
     if not os.path.exists(destination_folder):
         os.makedirs(destination_folder)
 
     classes_file = os.path.join(destination_folder, "classes.txt")
     with open(classes_file, "w") as f:
         for class_name in class_list:
-            f.write(class_name + "\n")
+            if class_name.strip():
+                f.write(class_name.strip() + "\n")
 
-    files = os.listdir(source_folder)
+    files = [f for f in os.listdir(source_folder) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
     total_images = len(files)
+
+    if total_images == 0:
+        raise Exception("No image files found in the source folder.")
 
     for i in range(0, total_images, images_per_pack):
         current_pack_name = f'{pack_name}_{i // images_per_pack}'
@@ -29,7 +31,6 @@ def split_images(source_folder, destination_folder, images_per_pack, pack_name, 
             shutil.copy(src_image, dst_image)
 
         shutil.copy(classes_file, current_pack_folder)
-        print(f'Pack {current_pack_name} created successfully!')
 
 def choose_source_folder():
     folder = filedialog.askdirectory()
@@ -41,18 +42,29 @@ def choose_destination_folder():
     destination_folder_entry.delete(0, tk.END)
     destination_folder_entry.insert(tk.END, folder.replace("/", "\\"))
 
-def process():
-    source_folder = source_folder_entry.get().replace("\\", "/")
-    destination_folder = destination_folder_entry.get().replace("\\", "/")
-    images_per_pack = int(images_per_pack_entry.get())
-    pack_name = pack_name_entry.get()
-    class_list = classes_text.get("1.0", tk.END).split("\n")
+def show_message(message, color):
+    status_label.config(text=message, fg=color)
+    window.after(3000, lambda: status_label.config(text=""))
 
-    status_label.config(text="Generating Folders...")
-    window.update()
+def run_in_thread():
+    thread = Thread(target=background_process)
+    thread.start()
 
-    split_images(source_folder, destination_folder, images_per_pack, pack_name, class_list)
-    status_label.config(text="Processing completed!")
+def background_process():
+    try:
+        source_folder = source_folder_entry.get().replace("\\", "/")
+        destination_folder = destination_folder_entry.get().replace("\\", "/")
+        images_per_pack = int(images_per_pack_entry.get())
+        pack_name = pack_name_entry.get().strip()
+        class_list = classes_text.get("1.0", tk.END).strip().split("\n")
+
+        if not source_folder or not destination_folder or not pack_name or images_per_pack <= 0:
+            raise ValueError("Please fill in all fields correctly.")
+
+        split_images(source_folder, destination_folder, images_per_pack, pack_name, class_list)
+        window.after(0, lambda: show_message("Processing completed!", "#00FF00"))
+    except Exception as e:
+        window.after(0, lambda: show_message(f"Error: {str(e)}", "#FF3333"))
 
 # GUI Setup
 window = tk.Tk()
@@ -64,50 +76,33 @@ window.configure(bg="#282C34")
 def create_label(parent, text):
     return tk.Label(parent, text=text, bg="#282C34", fg="#FFFFFF", font=("Arial", 12, "bold"))
 
-title_label = tk.Label(window, text="Folder files separator", bg="#282C34", fg="#FFFFFF", font=("Arial", 16, "bold"))
-title_label.pack(pady=10)
+tk.Label(window, text="Folder Files Separator", bg="#282C34", fg="#FFFFFF", font=("Arial", 16, "bold")).pack(pady=10)
 
-source_folder_label = create_label(window, "Source Folder:")
-source_folder_label.pack()
-
+create_label(window, "Source Folder:").pack()
 source_folder_entry = tk.Entry(window, width=40, font=("Arial", 12))
 source_folder_entry.pack()
+tk.Button(window, text="Select", command=choose_source_folder, font=("Arial", 12, "bold"), bg="#000033", fg="#FFFFFF").pack()
 
-select_source_button = tk.Button(window, text="Select", command=choose_source_folder, font=("Arial", 12, "bold"), bg="#000033", fg="#FFFFFF")
-select_source_button.pack()
-
-destination_folder_label = create_label(window, "Destination Folder:")
-destination_folder_label.pack()
-
+create_label(window, "Destination Folder:").pack()
 destination_folder_entry = tk.Entry(window, width=40, font=("Arial", 12))
 destination_folder_entry.pack()
+tk.Button(window, text="Select", command=choose_destination_folder, font=("Arial", 12, "bold"), bg="#000033", fg="#FFFFFF").pack()
 
-select_destination_button = tk.Button(window, text="Select", command=choose_destination_folder, font=("Arial", 12), bg="#000033", fg="#FFFFFF")
-select_destination_button.pack()
-
-images_per_pack_label = create_label(window, "Number of Files per Pack:")
-images_per_pack_label.pack()
-
+create_label(window, "Number of Files per Pack:").pack()
 images_per_pack_entry = tk.Entry(window, width=10, font=("Arial", 12))
 images_per_pack_entry.pack()
 
-pack_name_label = create_label(window, "Folder Name:")
-pack_name_label.pack()
-
+create_label(window, "Folder Name:").pack()
 pack_name_entry = tk.Entry(window, width=40, font=("Arial", 12))
 pack_name_entry.pack()
 
-classes_label = create_label(window, "Classes (one per line):")
-classes_label.pack()
-
+create_label(window, "Classes (one per line):").pack()
 classes_text = tk.Text(window, height=10, width=40, font=("Arial", 12))
-classes_text.insert(0.0, "__ignore__\n_background_\n")
 classes_text.pack()
 
-process_button = tk.Button(window, text="Generate Folders!", command=process, font=("Arial", 12), bg="#000033", fg="#FFFFFF")
-process_button.pack()
+tk.Button(window, text="Generate Folders!", command=run_in_thread, font=("Arial", 12, "bold"), bg="#000033", fg="#FFFFFF").pack(pady=10)
 
-status_label = create_label(window, text="")
+status_label = tk.Label(window, text="", bg="#282C34", font=("Arial", 12, "bold"))
 status_label.pack()
 
 window.mainloop()
