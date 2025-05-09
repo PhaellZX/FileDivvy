@@ -87,6 +87,7 @@ python FileDivvyApp.py
 **Labeler Annotation Auto:**
 
 ![alt text](images/readme/image-2.png)
+
 ---
 
 ## 📁 Example Use Case
