@@ -1,2 +1,8 @@
 # created by virtualenv automatically
 venv/
+pyvenv.cfg
+
+# FileDivvy.exe
+build/
+dist/
+
