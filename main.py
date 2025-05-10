@@ -2,39 +2,39 @@ import tkinter as tk
 from lib.ImageFolderSeparator import open_separator_window
 from lib.LabelerAnnotationAuto import open_annotator_window
 
-def sair():
+def exit_app():
     window.destroy()
 
-# Janela principal
+# Main window
 window = tk.Tk()
 window.title("FileDivvy")
 window.geometry("400x300")
 window.resizable(False, False)
 window.configure(bg="#282C34")
 
-titulo_label = tk.Label(window, text="FileDivvy", bg="#282C34", fg="#FFFFFF", font=("Arial", 16, "bold"))
-titulo_label.pack(pady=20)
+title_label = tk.Label(window, text="FileDivvy", bg="#282C34", fg="#FFFFFF", font=("Arial", 16, "bold"))
+title_label.pack(pady=20)
 
-# Função para abrir a tela de separação de arquivos
-def abrir_separador():
+# Function to open the file separation window
+def open_separator():
     open_separator_window(window)
 
-# Função para abrir a tela de rotulagem automática
-def abrir_rotulagem():
+# Function to open the automatic labeling window
+def open_labeling():
     open_annotator_window(window)
 
-# Botão para separar arquivos
-botao_main = tk.Button(window, text="📁 Separate files into folders and add ontology", command=abrir_separador,
-                       font=("Arial", 12), bg="#000033", fg="#FFFFFF")
-botao_main.pack(pady=10)
+# Button to separate files
+button_main = tk.Button(window, text="📁 Separate files into folders and add ontology", command=open_separator,
+                        font=("Arial", 12), bg="#000033", fg="#FFFFFF")
+button_main.pack(pady=10)
 
-# Botão para iniciar a rotulagem automática
-botao_video_interface = tk.Button(window, text="⚙ Make automatic labels [bounding box]", command=abrir_rotulagem,
-                                  font=("Arial", 12), bg="#000033", fg="#FFFFFF")
-botao_video_interface.pack(pady=10)
+# Button to start automatic labeling
+button_auto_label = tk.Button(window, text="⚙ Make automatic labels [bounding box]", command=open_labeling,
+                              font=("Arial", 12), bg="#000033", fg="#FFFFFF")
+button_auto_label.pack(pady=10)
 
-# Botão para sair
-botao_sair = tk.Button(window, text="Exit", command=sair, font=("Arial", 14, "bold"), bg="#FF0000", fg="#FFFFFF")
-botao_sair.pack(pady=20)
+# Exit button
+exit_button = tk.Button(window, text="Exit", command=exit_app, font=("Arial", 14, "bold"), bg="#FF0000", fg="#FFFFFF")
+exit_button.pack(pady=20)
 
 window.mainloop()

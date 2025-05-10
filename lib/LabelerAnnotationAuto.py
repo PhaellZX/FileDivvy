@@ -100,7 +100,6 @@ def run_detection(entry_image_folder, entry_classes_file, entry_output_folder, f
                                 "fill_color": None
                             })
 
-                # Salvar JSON
                 if format_selected == "LabelStudio":
                     label_data = {
                         "data": {"image": file_name},
@@ -128,11 +127,6 @@ def run_detection(entry_image_folder, entry_classes_file, entry_output_folder, f
     except Exception as e:
         print(f"Error: {e}")
         window.after(0, lambda: show_temporary_message(status_label, "Error during annotation processing!", "#FF0000"))
-
-
-# 🔥 Esta é a função que você deve importar no `main.py`
-import tkinter as tk
-from tkinter import filedialog
 
 def open_annotator_window(master):
     window = tk.Toplevel(master)
@@ -175,7 +169,6 @@ def open_annotator_window(master):
     create_labeled_entry(3, "Classes.txt File:", "classes_file", select_file)
     create_labeled_entry(6, "Output Folder:", "output_folder", select_folder)
 
-    # Output format
     tk.Label(window, text="Output Format:", font=font_label, bg="#282C34", fg="white").grid(
         row=9, column=0, columnspan=2, pady=(10, 5))
 
@@ -191,7 +184,6 @@ def open_annotator_window(master):
                          activebackground="#282C34", anchor="w")
     rb2.grid(row=11, column=0, columnspan=2)
 
-    # Run Detection Button
     status_label = tk.Label(window, text="", font=font_label, bg="#282C34", fg="white")
     status_label.grid(row=13, column=0, columnspan=2)
 
@@ -213,9 +205,3 @@ def open_annotator_window(master):
         )
     )
     run_btn.grid(row=12, column=0, columnspan=2, pady=20)
-
-
-
-
-
-

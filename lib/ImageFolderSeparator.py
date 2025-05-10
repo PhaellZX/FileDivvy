@@ -77,7 +77,7 @@ def open_separator_window(master):
 
             shutil.copy(classes_file, current_pack_folder)
 
-    # Componentes da janela
+    # Window components
     tk.Label(window, text="Folder Files Separator", bg="#282C34", fg="#FFFFFF", font=("Arial", 16, "bold")).pack(pady=10)
 
     create_label(window, "Source Folder:").pack()
