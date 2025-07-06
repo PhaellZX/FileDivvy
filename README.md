@@ -5,7 +5,7 @@
 ## ⚙️ Features
 
 - ✅ **Split image folders** into multiple subfolders, each with a fixed number of images.
-- ✅ **Automatically annotate images** using a YOLOv8 model.
+- ✅ **Automatically annotate images** using a YOLOv8 model (**bounding box or segmentation**).
 - ✅ Choose between **LabelMe** and **Label Studio** output formats.
 - ✅ Simple and intuitive **graphical interface (GUI)** using Tkinter.
 
@@ -42,7 +42,7 @@ python FileDivvyApp.py
 
 ---
 
-## 🔍 Function 2: Auto-Annotate Images (Bounding Boxes)
+## 🔍 Function 2: Auto-Annotate Images (Bounding Boxes & Segmentation)
 
 ### Step-by-Step:
 
@@ -59,7 +59,11 @@ python FileDivvyApp.py
    - `LabelMe` – JSON format compatible with the LabelMe tool.  
    - `Label Studio` – JSON format for use with Label Studio.
 
-5. **Click "Run Detection!"**  
+5. **Choose the Annotation Type**  
+   - `Bounding Box` – Detects and saves rectangles for each object.  
+   - `Segmentation` – Detects and salva polygons (segmentations) for each object.
+
+6. **Click "Run Detection!"**  
    The YOLOv8 model will detect objects and create the annotation files.
 
 > Only objects matching your selected classes (from the `.txt`) and with confidence ≥ 0.5 will be saved.

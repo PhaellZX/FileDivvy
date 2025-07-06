@@ -1,6 +1,7 @@
 import tkinter as tk
 from lib.ImageFolderSeparator import open_separator_window
-from lib.LabelerAnnotationAuto import open_annotator_window
+from lib.LabelerAnnotationAutoBB import open_annotator_bb_window
+from lib.LabelerAnnotationAutoSeg import open_annotator_seg_window
 
 def exit_app():
     window.destroy()
@@ -20,16 +21,24 @@ def open_separator():
     open_separator_window(window)
 
 # Function to open the automatic labeling window
-def open_labeling():
-    open_annotator_window(window)
+def open_labeling_bb():
+    open_annotator_bb_window(window)
+
+def open_labeling_seg():
+    open_annotator_seg_window(window)
 
 # Button to separate files
 button_main = tk.Button(window, text="📁 Separate files into folders and add ontology", command=open_separator,
                         font=("Arial", 12), bg="#000033", fg="#FFFFFF")
 button_main.pack(pady=10)
 
-# Button to start automatic labeling
-button_auto_label = tk.Button(window, text="⚙ Make automatic labels [bounding box]", command=open_labeling,
+# Button to start boundig box automatic labeling
+button_auto_label = tk.Button(window, text="⚙ [bounding box] Make automatic labels", command=open_labeling_bb,
+                              font=("Arial", 12), bg="#000033", fg="#FFFFFF")
+button_auto_label.pack(pady=10)
+
+# Button to start segmentation automatic labeling
+button_auto_label = tk.Button(window, text="⚙ [segmentation] Make automatic labels", command=open_labeling_seg,
                               font=("Arial", 12), bg="#000033", fg="#FFFFFF")
 button_auto_label.pack(pady=10)
 
