@@ -50,8 +50,9 @@ def open_separator_window(master):
             window.after(0, lambda: show_temporary_message(status_label,"Processing completed!", "#00FF00"))
         except Exception as e:
             window.after(0, lambda: show_temporary_message(status_label,f"Error: {str(e)}", "#FF3333"))
-
-    def split_images(source_folder, destination_folder, images_per_pack, pack_name, class_list):
+    
+    # --- FUNÇÃO MODIFICADA ---
+    def split_images(source_folder, destination_folder, items_per_pack, pack_name, class_list):
         if not os.path.exists(destination_folder):
             os.makedirs(destination_folder)
 
@@ -61,21 +62,36 @@ def open_separator_window(master):
                 if class_name.strip():
                     f.write(class_name.strip() + "\n")
 
-        files = [f for f in os.listdir(source_folder) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
-        total_images = len(files)
+        # Agrupa arquivos por nome base (sem extensão)
+        file_groups = {}
+        for filename in os.listdir(source_folder):
+            file_base_name, file_ext = os.path.splitext(filename)
+            if file_base_name not in file_groups:
+                file_groups[file_base_name] = []
+            file_groups[file_base_name].append(filename)
 
-        if total_images == 0:
-            raise Exception("No image files found in the source folder.")
+        # Converte o dicionário para uma lista de grupos para iterar
+        grouped_files_list = list(file_groups.values())
+        total_groups = len(grouped_files_list)
 
-        for i in range(0, total_images, images_per_pack):
-            current_pack_name = f'{pack_name}_{i // images_per_pack}'
+        if total_groups == 0:
+            raise Exception("No files found in the source folder.")
+
+        for i in range(0, total_groups, items_per_pack):
+            current_pack_name = f'{pack_name}_{i // items_per_pack}'
             current_pack_folder = os.path.join(destination_folder, current_pack_name)
             os.makedirs(current_pack_folder)
 
-            for j in range(i, min(i + images_per_pack, total_images)):
-                shutil.copy(os.path.join(source_folder, files[j]), os.path.join(current_pack_folder, files[j]))
-
+            for j in range(i, min(i + items_per_pack, total_groups)):
+                # Pega o grupo de arquivos (imagem e JSON)
+                group = grouped_files_list[j]
+                for filename in group:
+                    source_path = os.path.join(source_folder, filename)
+                    destination_path = os.path.join(current_pack_folder, filename)
+                    shutil.copy(source_path, destination_path)
+            
             shutil.copy(classes_file, current_pack_folder)
+    # --- FIM DA FUNÇÃO MODIFICADA ---
 
     # Window components
     tk.Label(window, text="Folder Files Separator", bg="#282C34", fg="#FFFFFF", font=("Arial", 16, "bold")).pack(pady=10)
