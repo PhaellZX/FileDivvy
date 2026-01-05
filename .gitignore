@@ -6,3 +6,5 @@ pyvenv.cfg
 build/
 dist/
 
+# cache
+lib/__pycache__/
