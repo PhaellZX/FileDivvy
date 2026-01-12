@@ -155,7 +155,7 @@ def open_annotator_seg_window(master):
     window = tk.Toplevel(master)
     window.title("FileDivvy - Auto Annotator [Segmentation]")
     window.configure(bg="#282C34")
-    window.geometry("500x680")
+    window.geometry("500x550")
 
     font_label = ("Arial", 12, "bold")
 
