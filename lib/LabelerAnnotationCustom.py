@@ -25,13 +25,11 @@ def show_temporary_message(status_label, text, color):
     status_label.config(text=text, fg=color)
     status_label.after(3000, lambda: status_label.config(text=""))
 
-# ADICIONADO entry_conf NOS ARGUMENTOS
 def run_in_thread(entry_image, entry_model, entry_conf, entry_output, format_var, status_label, window):
     if not entry_model.get() or not entry_image.get() or not entry_output.get() or not entry_conf.get():
         show_temporary_message(status_label, "Preencha todos os campos!", "#FF0000")
         return
     
-    # Captura e valida o valor de confiança antes de iniciar a thread
     try:
         conf_value = float(entry_conf.get().replace(",", "."))
         if not (0.0 <= conf_value <= 1.0):
@@ -43,7 +41,6 @@ def run_in_thread(entry_image, entry_model, entry_conf, entry_output, format_var
     status_label.config(text="Detectando com modelo customizado...", fg="#FFFF00")
     threading.Thread(
         target=run_custom_detection,
-        # PASSANDO O conf_value PARA A FUNÇÃO DE DETECÇÃO
         args=(entry_image, entry_model, entry_output, format_var, status_label, window, conf_value),
         daemon=True
     ).start()
@@ -58,21 +55,22 @@ def run_custom_detection(entry_image, entry_model, entry_output, format_var, sta
         model = YOLO(model_path)
         is_seg = "segment" in model.task 
         
-        # Estrutura COCO
+        # Estruturas Consolidadas
         coco_output = {"images": [], "annotations": [], "categories": []}
         for id_cls, name in model.names.items():
             coco_output["categories"].append({"id": id_cls, "name": name, "supercategory": "none"})
+
+        cvat_root = ET.Element("annotations")
+        ET.SubElement(cvat_root, "version").text = "1.1"
 
         files = [f for f in os.listdir(image_folder) if f.lower().endswith(('.jpg', '.png', '.jpeg'))]
         ann_id_counter = 0
 
         for img_id, file_name in enumerate(files):
             raw_path = os.path.join(image_folder, file_name)
-            
             clean_base_name = os.path.splitext(file_name)[0]
             original_ext = os.path.splitext(file_name)[1]
             clean_image_name = f"{clean_base_name}{original_ext}"
-            
             save_path = os.path.join(output_folder, clean_image_name)
 
             with Image.open(raw_path) as img:
@@ -80,15 +78,21 @@ def run_custom_detection(entry_image, entry_model, entry_output, format_var, sta
                 img = img.convert("RGB")
                 img.save(save_path, quality=95)
 
-            # AQUI O VALOR DE CONFIANÇA DA INTERFACE É APLICADO
             results = model(save_path, conf=conf_value, imgsz=1280)[0]
             img_h, img_w = results.orig_shape
             
+            # Tag de imagem para CVAT
+            img_tag_cvat = ET.SubElement(cvat_root, "image", {
+                "id": str(img_id), "name": clean_image_name, 
+                "width": str(img_w), "height": str(img_h)
+            })
+
             if format_selected == "COCO":
                 coco_output["images"].append({"id": img_id, "file_name": clean_image_name, "width": img_w, "height": img_h})
 
             valid_annotations = []
 
+            # Lógica de Segmentação
             if is_seg and results.masks is not None:
                 for i, polygon in enumerate(results.masks.xy):
                     cls_id = int(results.boxes.cls[i])
@@ -106,9 +110,13 @@ def run_custom_detection(entry_image, entry_model, entry_output, format_var, sta
                             "area": bw * bh, "iscrowd": 0
                         })
                         ann_id_counter += 1
+                    elif format_selected == "CVAT":
+                        pts_str = ";".join([f"{p[0]},{p[1]}" for p in points])
+                        ET.SubElement(img_tag_cvat, "polygon", {"label": cls_name, "points": pts_str})
                     else:
                         valid_annotations.append({"label": cls_name, "points": points, "type": "polygon"})
             
+            # Lógica de Bounding Box (Detecção)
             elif results.boxes is not None:
                 for box in results.boxes:
                     cls_id = int(box.cls[0])
@@ -122,55 +130,31 @@ def run_custom_detection(entry_image, entry_model, entry_output, format_var, sta
                             "bbox": [x1, y1, bw, bh], "area": bw * bh, "iscrowd": 0
                         })
                         ann_id_counter += 1
+                    elif format_selected == "CVAT":
+                        ET.SubElement(img_tag_cvat, "box", {
+                            "label": cls_name, 
+                            "xtl": str(round(x1, 2)), "ytl": str(round(y1, 2)), 
+                            "xbr": str(round(x2, 2)), "ybr": str(round(y2, 2))
+                        })
                     else:
                         valid_annotations.append({
                             "label": cls_name, "type": "rectangle",
                             "points": [[round(x1, 2), round(y1, 2)], [round(x2, 2), round(y2, 2)]]
                         })
 
-            if format_selected == "COCO": continue
-
+            # Exportações individuais (LabelMe e LabelStudio)
             if format_selected == "LabelMe":
                 label_data = {
-                    "version": "3.18.0",
-                    "flags": {},
-                    "shapes": [],
-                    "lineColor": [0, 255, 0, 128],
-                    "fillColor": [255, 0, 0, 128],
-                    "line_color": [0, 255, 0, 128],
-                    "fill_color": [255, 0, 0, 128],
-                    "imagePath": clean_image_name,
-                    "imageData": None,
-                    "imageHeight": img_h,
-                    "imageWidth": img_w
+                    "version": "3.18.0", "flags": {}, "shapes": [],
+                    "imagePath": clean_image_name, "imageData": None, "imageHeight": img_h, "imageWidth": img_w
                 }
-
                 for a in valid_annotations:
                     label_data["shapes"].append({
-                        "label": a["label"],
-                        "points": a["points"],
-                        "group_id": None,
-                        "shape_type": a["type"],
-                        "flags": {},
-                        "line_color": None,
-                        "fill_color": None
+                        "label": a["label"], "points": a["points"], "group_id": None,
+                        "shape_type": a["type"], "flags": {}, "line_color": None, "fill_color": None
                     })
-
                 with open(os.path.join(output_folder, f"{clean_base_name}.json"), "w", encoding="utf-8") as f:
                     json.dump(label_data, f, indent=2, ensure_ascii=False)
-
-            elif format_selected == "CVAT":
-                root = ET.Element("annotations")
-                img_tag = ET.SubElement(root, "image", {"id": str(img_id), "name": clean_image_name, "width": str(img_w), "height": str(img_h)})
-                for a in valid_annotations:
-                    if a["type"] == "polygon":
-                        pts = ";".join([f"{p[0]},{p[1]}" for p in a["points"]])
-                        ET.SubElement(img_tag, "polygon", {"label": a["label"], "points": pts})
-                    else:
-                        ET.SubElement(img_tag, "box", {"label": a["label"], "xtl": str(a["points"][0][0]), "ytl": str(a["points"][0][1]), "xbr": str(a["points"][1][0]), "ybr": str(a["points"][1][1])})
-                xml_str = minidom.parseString(ET.tostring(root)).toprettyxml(indent="  ")
-                with open(os.path.join(output_folder, f"{clean_base_name}.xml"), "w") as f:
-                    f.write(xml_str)
 
             elif format_selected == "LabelStudio":
                 ls_results = []
@@ -185,9 +169,15 @@ def run_custom_detection(entry_image, entry_model, entry_output, format_var, sta
                 with open(os.path.join(output_folder, f"{clean_base_name}_ls.json"), "w") as f:
                     json.dump([{"data": {"image": clean_image_name}, "annotations": [{"result": ls_results}]}], f, indent=2)
 
+        # Escrita dos arquivos consolidados
         if format_selected == "COCO":
             with open(os.path.join(output_folder, "_annotations.coco.json"), "w") as f:
                 json.dump(coco_output, f, indent=4)
+        
+        elif format_selected == "CVAT":
+            xml_str = minidom.parseString(ET.tostring(cvat_root)).toprettyxml(indent="  ")
+            with open(os.path.join(output_folder, "annotations.xml"), "w", encoding="utf-8") as f:
+                f.write(xml_str)
 
         window.after(0, lambda: show_temporary_message(status_label, "Processamento Concluído!", "#00FF00"))
     except Exception as e:
@@ -196,7 +186,7 @@ def run_custom_detection(entry_image, entry_model, entry_output, format_var, sta
 def open_annotator_custom_window(master):
     window = tk.Toplevel(master)
     window.title("FileDivvy - Custom Model")
-    window.geometry("600x750") # Aumentado apenas para evitar corte no botão
+    window.geometry("600x750")
     window.configure(bg="#282C34")
 
     font_label = ("Arial", 12, "bold")
@@ -209,12 +199,10 @@ def open_annotator_custom_window(master):
     e_mod = tk.Entry(window, width=55); e_mod.pack()
     tk.Button(window, text="Selecionar Modelo", command=lambda: select_model(e_mod)).pack(pady=5)
 
-    # --- NOVO CAMPO: CONFIANÇA ---
     tk.Label(window, text="Confiança do Modelo (0.0 a 1.0):", font=font_label, bg="#282C34", fg="white").pack(pady=(15,5))
     e_conf = tk.Entry(window, width=10)
     e_conf.insert(0, "0.25") 
     e_conf.pack()
-    # -----------------------------
 
     tk.Label(window, text="Pasta de Saída (Output):", font=font_label, bg="#282C34", fg="white").pack(pady=(15,5))
     e_out = tk.Entry(window, width=55); e_out.pack()
