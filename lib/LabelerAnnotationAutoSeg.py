@@ -42,7 +42,8 @@ def show_temporary_message(status_label, text, color):
     status_label.config(text=text, fg=color)
     status_label.after(3000, lambda: status_label.config(text=""))
 
-def run_in_thread(entry_image_folder, listbox_classes, entry_output_folder, format_var, status_label, window):
+# ADICIONADO entry_conf NOS ARGUMENTOS
+def run_in_thread(entry_image_folder, listbox_classes, entry_conf, entry_output_folder, format_var, status_label, window):
     selected_indices = listbox_classes.curselection()
     selected_classes = [listbox_classes.get(i) for i in selected_indices]
 
@@ -50,98 +51,148 @@ def run_in_thread(entry_image_folder, listbox_classes, entry_output_folder, form
         show_temporary_message(status_label, "Selecione ao menos uma classe!", "#FF0000")
         return
 
+    # Captura e valida o valor de confiança
+    try:
+        conf_value = float(entry_conf.get().replace(",", "."))
+        if not (0.0 <= conf_value <= 1.0):
+            raise ValueError
+    except ValueError:
+        show_temporary_message(status_label, "Confiança deve ser entre 0.0 e 1.0", "#FF0000")
+        return
+
     status_label.config(text="Processando Segmentação...", fg="#FFFF00")
     threading.Thread(
-        target=run_detection,
-        args=(entry_image_folder, selected_classes, entry_output_folder, format_var, status_label, window),
+        target=run_segmentation,
+        # PASSANDO O conf_value PARA A FUNÇÃO DE SEGMENTAÇÃO
+        args=(entry_image_folder, listbox_classes, entry_output_folder, format_var, status_label, window, conf_value),
         daemon=True
     ).start()
 
-def run_detection(entry_image_folder, target_classes, entry_output_folder, format_var, status_label, window):
+def run_segmentation(entry_in, listbox, entry_out, format_var, status_label, window, conf_value):
     try:
-        image_folder = entry_image_folder.get().replace("\\", "/")
-        output_folder = entry_output_folder.get().replace("\\", "/")
+        image_folder = entry_in.get().replace("\\", "/")
+        output_folder = entry_out.get().replace("\\", "/")
         format_selected = format_var.get()
+        selected = [listbox.get(i) for i in listbox.curselection()]
 
-        model = YOLO(resource_path("models/yolov8n-seg.pt"))
+        if not selected:
+            window.after(0, lambda: show_temporary_message(status_label, "Selecione ao menos uma classe!", "#FF0000"))
+            return
+
+        status_label.config(text="Segmentando objetos...", fg="#FFFF00")
+
+        model = YOLO("yolov8n-seg.pt")
+        files = [f for f in os.listdir(image_folder) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
         
         coco_output = {"images": [], "annotations": [], "categories": []}
-        for idx, cat_name in enumerate(target_classes):
-            coco_output["categories"].append({"id": idx, "name": cat_name, "supercategory": "none"})
+        for i, cl in enumerate(COCO_CLASSES):
+            coco_output["categories"].append({"id": i, "name": cl, "supercategory": "none"})
 
-        files = [f for f in os.listdir(image_folder) if f.lower().endswith(('.jpg', '.png', '.jpeg'))]
         ann_id_counter = 0
 
         for img_id, file_name in enumerate(files):
             raw_path = os.path.join(image_folder, file_name)
-            clean_image_name = f"{os.path.splitext(file_name)[0].lower()}.jpg"
+            
+            clean_base_name = os.path.splitext(file_name)[0]
+            original_ext = os.path.splitext(file_name)[1]
+            clean_image_name = f"{clean_base_name}{original_ext}"
             save_path = os.path.join(output_folder, clean_image_name)
 
-            # Limpeza e Reconstrução
             with Image.open(raw_path) as img:
                 img = ImageOps.exif_transpose(img)
                 img = img.convert("RGB")
-                img.save(save_path, "JPEG", quality=95)
+                img.save(save_path, quality=95)
 
-            results = model(save_path, conf=0.25, imgsz=640)[0]
+            # APLICAÇÃO DA NOVA FEATURE: conf=conf_value
+            results = model(save_path, conf=conf_value)[0]
             img_h, img_w = results.orig_shape
 
             if format_selected == "COCO":
                 coco_output["images"].append({"id": img_id, "file_name": clean_image_name, "width": img_w, "height": img_h})
 
-            valid_annotations = []
+            current_annotations = []
+
             if results.masks is not None:
                 for i, polygon in enumerate(results.masks.xy):
                     cls_id = int(results.boxes.cls[i])
-                    label = model.names[cls_id]
-                    conf = float(results.boxes.conf[i])
+                    label_name = model.names[cls_id]
 
-                    if label in target_classes:
-                        valid_annotations.append({
-                            "label": label,
-                            "points": [[float(x), float(y)] for x, y in polygon],
-                            "score": conf
-                        })
+                    if label_name in selected:
+                        points = [[round(float(x), 1), round(float(y), 1)] for x, y in polygon]
+                        
+                        if format_selected == "COCO":
+                            flat_pts = [coord for pt in points for coord in pt]
+                            x_coords = [p[0] for p in points]
+                            y_coords = [p[1] for p in points]
+                            min_x, min_y = min(x_coords), min(y_coords)
+                            bw, bh = max(x_coords) - min_x, max(y_coords) - min_y
+                            
+                            coco_output["annotations"].append({
+                                "id": ann_id_counter,
+                                "image_id": img_id,
+                                "category_id": cls_id,
+                                "segmentation": [flat_pts],
+                                "bbox": [min_x, min_y, bw, bh],
+                                "area": bw * bh,
+                                "iscrowd": 0
+                            })
+                            ann_id_counter += 1
+                        else:
+                            current_annotations.append({
+                                "label": label_name,
+                                "points": points
+                            })
 
-            if not valid_annotations: continue
-
-            # --- EXPORTAÇÕES ---
             if format_selected == "LabelMe":
-                shapes = [{"label": a["label"], "points": a["points"], "shape_type": "polygon", "flags": {}} for a in valid_annotations]
-                label_data = {"version": "3.18.0", "flags": {}, "shapes": shapes, "imagePath": clean_image_name, "imageData": None, "imageHeight": img_h, "imageWidth": img_w}
-                with open(os.path.join(output_folder, clean_image_name.replace(".jpg", ".json")), "w") as f:
-                    json.dump(label_data, f, indent=4)
+                shapes = []
+                for ann in current_annotations:
+                    shapes.append({
+                        "label": ann["label"],
+                        "points": ann["points"],
+                        "group_id": None,
+                        "shape_type": "polygon",
+                        "flags": {},
+                        "line_color": None,
+                        "fill_color": None
+                    })
+
+                label_data = {
+                    "version": "3.18.0",
+                    "flags": {},
+                    "shapes": shapes,
+                    "lineColor": [0, 255, 0, 128],
+                    "fillColor": [255, 0, 0, 128],
+                    "line_color": [0, 255, 0, 128],
+                    "fill_color": [255, 0, 0, 128],
+                    "imagePath": clean_image_name,
+                    "imageData": None,
+                    "imageHeight": img_h,
+                    "imageWidth": img_w
+                }
+                with open(os.path.join(output_folder, f"{clean_base_name}.json"), "w", encoding="utf-8") as f:
+                    json.dump(label_data, f, indent=2, ensure_ascii=False)
 
             elif format_selected == "CVAT":
                 root = ET.Element("annotations")
                 img_tag = ET.SubElement(root, "image", {"id": str(img_id), "name": clean_image_name, "width": str(img_w), "height": str(img_h)})
-                for a in valid_annotations:
-                    pts_str = ";".join([f"{p[0]},{p[1]}" for p in a["points"]])
-                    ET.SubElement(img_tag, "polygon", {"label": a["label"], "points": pts_str, "occluded": "0"})
+                for ann in current_annotations:
+                    pts_str = ";".join([f"{p[0]},{p[1]}" for p in ann["points"]])
+                    ET.SubElement(img_tag, "polygon", {"label": ann["label"], "points": pts_str})
+                
                 xml_str = minidom.parseString(ET.tostring(root)).toprettyxml(indent="  ")
-                with open(os.path.join(output_folder, clean_image_name.replace(".jpg", ".xml")), "w") as f:
+                with open(os.path.join(output_folder, f"{clean_base_name}.xml"), "w") as f:
                     f.write(xml_str)
 
             elif format_selected == "LabelStudio":
                 ls_results = []
-                for a in valid_annotations:
-                    pts_rel = [[(p[0]/img_w)*100, (p[1]/img_h)*100] for p in a["points"]]
-                    ls_results.append({"from_name": "label", "to_name": "image", "type": "polygonlabels", "value": {"points": pts_rel, "polygonlabels": [a["label"]]}})
-                with open(os.path.join(output_folder, clean_image_name.replace(".jpg", "_ls.json")), "w") as f:
-                    json.dump([{"data": {"image": clean_image_name}, "annotations": [{"result": ls_results}]}], f, indent=4)
-
-            elif format_selected == "COCO":
-                for a in valid_annotations:
-                    flat_pts = [coord for pt in a["points"] for coord in pt]
-                    x_coords, y_coords = [p[0] for p in a["points"]], [p[1] for p in a["points"]]
-                    min_x, min_y = min(x_coords), min(y_coords)
-                    bw, bh = max(x_coords) - min_x, max(y_coords) - min_y
-                    coco_output["annotations"].append({
-                        "id": ann_id_counter, "image_id": img_id, "category_id": target_classes.index(a["label"]),
-                        "segmentation": [flat_pts], "bbox": [round(min_x, 2), round(min_y, 2), round(bw, 2), round(bh, 2)],
-                        "area": round(bw * bh, 2), "iscrowd": 0
+                for ann in current_annotations:
+                    pts_rel = [[(p[0] / img_w) * 100, (p[1] / img_h) * 100] for p in ann["points"]]
+                    ls_results.append({
+                        "from_name": "label", "to_name": "image", "type": "polygonlabels",
+                        "value": {"points": pts_rel, "polygonlabels": [ann["label"]]}
                     })
-                    ann_id_counter += 1
+                with open(os.path.join(output_folder, f"{clean_base_name}_ls.json"), "w") as f:
+                    json.dump([{"data": {"image": clean_image_name}, "annotations": [{"result": ls_results}]}], f, indent=2)
 
         if format_selected == "COCO":
             with open(os.path.join(output_folder, "_annotations.coco.json"), "w") as f:
@@ -154,7 +205,7 @@ def run_detection(entry_image_folder, target_classes, entry_output_folder, forma
 def open_annotator_seg_window(master):
     window = tk.Toplevel(master)
     window.title("FileDivvy - Segmentation")
-    window.geometry("600x800")
+    window.geometry("600x850") # Aumentado para comportar o novo campo
     window.configure(bg="#282C34")
 
     font_label = ("Arial", 12, "bold")
@@ -167,6 +218,13 @@ def open_annotator_seg_window(master):
     listbox = tk.Listbox(window, selectmode=tk.MULTIPLE, width=50, height=10)
     for c in COCO_CLASSES: listbox.insert(tk.END, c)
     listbox.pack()
+
+    # --- NOVO CAMPO: CONFIANÇA ---
+    tk.Label(window, text="Confiança do Modelo (0.0 a 1.0):", font=font_label, bg="#282C34", fg="white").pack(pady=(15,5))
+    e_conf = tk.Entry(window, width=10)
+    e_conf.insert(0, "0.25") # Valor padrão original do seu script de seg
+    e_conf.pack()
+    # -----------------------------
 
     tk.Label(window, text="Pasta de Saída:", font=font_label, bg="#282C34", fg="white").pack(pady=(15,5))
     entry_out = tk.Entry(window, width=55); entry_out.pack()
@@ -184,4 +242,4 @@ def open_annotator_seg_window(master):
     status_label.pack(pady=20)
 
     tk.Button(window, text="INICIAR SEGMENTAÇÃO", bg="#4CAF50", fg="white", font=("Arial", 12, "bold"), width=25, 
-              command=lambda: run_in_thread(entry_in, listbox, entry_out, fmt_var, status_label, window)).pack(pady=10)
+              command=lambda: run_in_thread(entry_in, listbox, e_conf, entry_out, fmt_var, status_label, window)).pack(pady=10)

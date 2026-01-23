@@ -25,19 +25,30 @@ def show_temporary_message(status_label, text, color):
     status_label.config(text=text, fg=color)
     status_label.after(3000, lambda: status_label.config(text=""))
 
-def run_in_thread(entry_image, entry_model, entry_output, format_var, status_label, window):
-    if not entry_model.get() or not entry_image.get() or not entry_output.get():
+# ADICIONADO entry_conf NOS ARGUMENTOS
+def run_in_thread(entry_image, entry_model, entry_conf, entry_output, format_var, status_label, window):
+    if not entry_model.get() or not entry_image.get() or not entry_output.get() or not entry_conf.get():
         show_temporary_message(status_label, "Preencha todos os campos!", "#FF0000")
         return
     
+    # Captura e valida o valor de confiança antes de iniciar a thread
+    try:
+        conf_value = float(entry_conf.get().replace(",", "."))
+        if not (0.0 <= conf_value <= 1.0):
+            raise ValueError
+    except ValueError:
+        show_temporary_message(status_label, "Confiança deve ser entre 0.0 e 1.0", "#FF0000")
+        return
+
     status_label.config(text="Detectando com modelo customizado...", fg="#FFFF00")
     threading.Thread(
         target=run_custom_detection,
-        args=(entry_image, entry_model, entry_output, format_var, status_label, window),
+        # PASSANDO O conf_value PARA A FUNÇÃO DE DETECÇÃO
+        args=(entry_image, entry_model, entry_output, format_var, status_label, window, conf_value),
         daemon=True
     ).start()
 
-def run_custom_detection(entry_image, entry_model, entry_output, format_var, status_label, window):
+def run_custom_detection(entry_image, entry_model, entry_output, format_var, status_label, window, conf_value):
     try:
         image_folder = entry_image.get().replace("\\", "/")
         model_path = entry_model.get().replace("\\", "/")
@@ -57,17 +68,20 @@ def run_custom_detection(entry_image, entry_model, entry_output, format_var, sta
 
         for img_id, file_name in enumerate(files):
             raw_path = os.path.join(image_folder, file_name)
-            clean_base_name = os.path.splitext(file_name)[0].lower()
-            clean_image_name = f"{clean_base_name}.jpg"
+            
+            clean_base_name = os.path.splitext(file_name)[0]
+            original_ext = os.path.splitext(file_name)[1]
+            clean_image_name = f"{clean_base_name}{original_ext}"
+            
             save_path = os.path.join(output_folder, clean_image_name)
 
-            # Reconstrução da imagem (Pillow)
             with Image.open(raw_path) as img:
                 img = ImageOps.exif_transpose(img)
                 img = img.convert("RGB")
-                img.save(save_path, "JPEG", quality=95)
+                img.save(save_path, quality=95)
 
-            results = model(save_path, conf=0.20, imgsz=1280)[0]
+            # AQUI O VALOR DE CONFIANÇA DA INTERFACE É APLICADO
+            results = model(save_path, conf=conf_value, imgsz=1280)[0]
             img_h, img_w = results.orig_shape
             
             if format_selected == "COCO":
@@ -75,7 +89,6 @@ def run_custom_detection(entry_image, entry_model, entry_output, format_var, sta
 
             valid_annotations = []
 
-            # Lógica para Segmentação
             if is_seg and results.masks is not None:
                 for i, polygon in enumerate(results.masks.xy):
                     cls_id = int(results.boxes.cls[i])
@@ -96,7 +109,6 @@ def run_custom_detection(entry_image, entry_model, entry_output, format_var, sta
                     else:
                         valid_annotations.append({"label": cls_name, "points": points, "type": "polygon"})
             
-            # Lógica para Bounding Boxes
             elif results.boxes is not None:
                 for box in results.boxes:
                     cls_id = int(box.cls[0])
@@ -118,15 +130,34 @@ def run_custom_detection(entry_image, entry_model, entry_output, format_var, sta
 
             if format_selected == "COCO": continue
 
-            # --- EXPORTAÇÕES INDIVIDUAIS (LabelMe, CVAT, LabelStudio) ---
             if format_selected == "LabelMe":
                 label_data = {
-                    "version": "3.18.0", "flags": {}, "imagePath": clean_image_name, "imageData": None,
-                    "imageHeight": img_h, "imageWidth": img_w,
-                    "shapes": [{"label": a["label"], "points": a["points"], "shape_type": a["type"], "flags": {}} for a in valid_annotations]
+                    "version": "3.18.0",
+                    "flags": {},
+                    "shapes": [],
+                    "lineColor": [0, 255, 0, 128],
+                    "fillColor": [255, 0, 0, 128],
+                    "line_color": [0, 255, 0, 128],
+                    "fill_color": [255, 0, 0, 128],
+                    "imagePath": clean_image_name,
+                    "imageData": None,
+                    "imageHeight": img_h,
+                    "imageWidth": img_w
                 }
-                with open(os.path.join(output_folder, f"{clean_base_name}.json"), "w") as f:
-                    json.dump(label_data, f, indent=2)
+
+                for a in valid_annotations:
+                    label_data["shapes"].append({
+                        "label": a["label"],
+                        "points": a["points"],
+                        "group_id": None,
+                        "shape_type": a["type"],
+                        "flags": {},
+                        "line_color": None,
+                        "fill_color": None
+                    })
+
+                with open(os.path.join(output_folder, f"{clean_base_name}.json"), "w", encoding="utf-8") as f:
+                    json.dump(label_data, f, indent=2, ensure_ascii=False)
 
             elif format_selected == "CVAT":
                 root = ET.Element("annotations")
@@ -165,7 +196,7 @@ def run_custom_detection(entry_image, entry_model, entry_output, format_var, sta
 def open_annotator_custom_window(master):
     window = tk.Toplevel(master)
     window.title("FileDivvy - Custom Model")
-    window.geometry("550x700")
+    window.geometry("600x750") # Aumentado apenas para evitar corte no botão
     window.configure(bg="#282C34")
 
     font_label = ("Arial", 12, "bold")
@@ -177,6 +208,13 @@ def open_annotator_custom_window(master):
     tk.Label(window, text="Modelo YOLO (.pt / .onnx):", font=font_label, bg="#282C34", fg="white").pack(pady=(15,5))
     e_mod = tk.Entry(window, width=55); e_mod.pack()
     tk.Button(window, text="Selecionar Modelo", command=lambda: select_model(e_mod)).pack(pady=5)
+
+    # --- NOVO CAMPO: CONFIANÇA ---
+    tk.Label(window, text="Confiança do Modelo (0.0 a 1.0):", font=font_label, bg="#282C34", fg="white").pack(pady=(15,5))
+    e_conf = tk.Entry(window, width=10)
+    e_conf.insert(0, "0.25") 
+    e_conf.pack()
+    # -----------------------------
 
     tk.Label(window, text="Pasta de Saída (Output):", font=font_label, bg="#282C34", fg="white").pack(pady=(15,5))
     e_out = tk.Entry(window, width=55); e_out.pack()
@@ -194,4 +232,4 @@ def open_annotator_custom_window(master):
     lbl_status.pack(pady=20)
 
     tk.Button(window, text="EXECUTAR PRÉ-ROTULAGEM", bg="#4CAF50", fg="white", font=("Arial", 12, "bold"), width=30,
-              command=lambda: run_in_thread(e_img, e_mod, e_out, fmt_var, lbl_status, window)).pack(pady=10)
+              command=lambda: run_in_thread(e_img, e_mod, e_conf, e_out, fmt_var, lbl_status, window)).pack(pady=10)

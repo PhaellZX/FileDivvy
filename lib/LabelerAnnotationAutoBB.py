@@ -40,7 +40,8 @@ def show_temporary_message(status_label, text, color):
     status_label.config(text=text, fg=color)
     status_label.after(3000, lambda: status_label.config(text=""))
 
-def run_in_thread(entry_image_folder, listbox_classes, entry_output_folder, format_var, status_label, window):
+# ADICIONADO entry_conf NOS ARGUMENTOS
+def run_in_thread(entry_image_folder, listbox_classes, entry_conf, entry_output_folder, format_var, status_label, window):
     selected_indices = listbox_classes.curselection()
     selected_classes = [listbox_classes.get(i) for i in selected_indices]
 
@@ -48,110 +49,166 @@ def run_in_thread(entry_image_folder, listbox_classes, entry_output_folder, form
         show_temporary_message(status_label, "Selecione ao menos uma classe!", "#FF0000")
         return
 
+    # Captura e valida o valor de confiança
+    try:
+        conf_value = float(entry_conf.get().replace(",", "."))
+        if not (0.0 <= conf_value <= 1.0):
+            raise ValueError
+    except ValueError:
+        show_temporary_message(status_label, "Confiança deve ser entre 0.0 e 1.0", "#FF0000")
+        return
+
     status_label.config(text="Processando e exportando...", fg="#FFFF00")
     threading.Thread(
         target=run_detection,
-        args=(entry_image_folder, selected_classes, entry_output_folder, format_var, status_label, window),
+        # PASSANDO O conf_value PARA A FUNÇÃO DE DETECÇÃO
+        args=(entry_image_folder, listbox_classes, entry_output_folder, format_var, status_label, window, conf_value),
         daemon=True
     ).start()
 
-def run_detection(entry_image_folder, target_classes, entry_output_folder, format_var, status_label, window):
+def run_detection(entry_img, listbox, entry_out, format_var, status_label, window, conf_value):
     try:
-        image_folder = entry_image_folder.get().replace("\\", "/")
-        output_folder = entry_output_folder.get().replace("\\", "/")
+        image_folder = entry_img.get().replace("\\", "/")
+        output_folder = entry_out.get().replace("\\", "/")
         format_selected = format_var.get()
+        
+        selected = [listbox.get(i) for i in listbox.curselection()]
 
-        model = YOLO(resource_path("models/yolov8n.pt"))
+        if not selected:
+            window.after(0, lambda: show_temporary_message(status_label, "Selecione ao menos uma classe!", "#FF0000"))
+            return
+
+        status_label.config(text="Detectando objetos...", fg="#FFFF00")
+
+        model = YOLO("yolov8n.pt")
+        
+        files = [f for f in os.listdir(image_folder) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
         
         coco_output = {"images": [], "annotations": [], "categories": []}
-        for idx, cat_name in enumerate(target_classes):
-            coco_output["categories"].append({"id": idx, "name": cat_name, "supercategory": "none"})
+        for i, cl in enumerate(COCO_CLASSES):
+            coco_output["categories"].append({"id": i, "name": cl, "supercategory": "none"})
 
-        files = [f for f in os.listdir(image_folder) if f.lower().endswith(('.jpg', '.png', '.jpeg'))]
         ann_id_counter = 0
 
         for img_id, file_name in enumerate(files):
             raw_path = os.path.join(image_folder, file_name)
-            clean_image_name = f"{os.path.splitext(file_name)[0].lower()}.jpg"
+            
+            clean_base_name = os.path.splitext(file_name)[0]
+            original_ext = os.path.splitext(file_name)[1]
+            clean_image_name = f"{clean_base_name}{original_ext}"
             save_path = os.path.join(output_folder, clean_image_name)
 
             with Image.open(raw_path) as img:
                 img = ImageOps.exif_transpose(img)
                 img = img.convert("RGB")
-                img.save(save_path, "JPEG", quality=95)
+                img.save(save_path, quality=95)
 
-            results = model(save_path, conf=0.25, imgsz=640)[0]
+            # AQUI O VALOR DE CONFIANÇA DA INTERFACE É APLICADO
+            results = model(save_path, conf=conf_value)[0]
             img_h, img_w = results.orig_shape
 
             if format_selected == "COCO":
                 coco_output["images"].append({"id": img_id, "file_name": clean_image_name, "width": img_w, "height": img_h})
 
-            valid_annotations = []
+            current_annotations = []
+
             for box in results.boxes:
-                label = model.names[int(box.cls[0])]
-                if label in target_classes:
+                cls_id = int(box.cls[0])
+                label_name = model.names[cls_id]
+
+                if label_name in selected:
                     x1, y1, x2, y2 = box.xyxy[0].tolist()
-                    valid_annotations.append({"label": label, "points": [[x1, y1], [x2, y2]]})
+                    bw, bh = x2 - x1, y2 - y1
 
-            # --- EXPORTAÇÃO LABELME ---
+                    if format_selected == "COCO":
+                        coco_output["annotations"].append({
+                            "id": ann_id_counter,
+                            "image_id": img_id,
+                            "category_id": cls_id,
+                            "bbox": [x1, y1, bw, bh],
+                            "area": bw * bh,
+                            "iscrowd": 0
+                        })
+                        ann_id_counter += 1
+                    else:
+                        current_annotations.append({
+                            "label": label_name,
+                            "bbox": [x1, y1, x2, y2]
+                        })
+
             if format_selected == "LabelMe":
-                labelme_data = {
-                    "version": "3.18.0", "flags": {}, "imagePath": clean_image_name, "imageData": None,
-                    "imageHeight": img_h, "imageWidth": img_w,
-                    "shapes": [{"label": a["label"], "points": a["points"], "shape_type": "rectangle", "flags": {}} for a in valid_annotations]
-                }
-                with open(os.path.join(output_folder, clean_image_name.replace(".jpg", ".json")), 'w') as f:
-                    json.dump(labelme_data, f, indent=4)
+                shapes = []
+                for ann in current_annotations:
+                    shapes.append({
+                        "label": ann["label"],
+                        "points": [
+                            [round(ann["bbox"][0], 1), round(ann["bbox"][1], 1)], 
+                            [round(ann["bbox"][2], 1), round(ann["bbox"][3], 1)]
+                        ],
+                        "group_id": None,
+                        "shape_type": "rectangle",
+                        "flags": {},
+                        "line_color": None,
+                        "fill_color": None
+                    })
 
-            # --- EXPORTAÇÃO CVAT ---
+                label_data = {
+                    "version": "3.18.0",
+                    "flags": {},
+                    "shapes": shapes,
+                    "lineColor": [0, 255, 0, 128],
+                    "fillColor": [255, 0, 0, 128],
+                    "line_color": [0, 255, 0, 128],
+                    "fill_color": [255, 0, 0, 128],
+                    "imagePath": clean_image_name,
+                    "imageData": None,
+                    "imageHeight": img_h,
+                    "imageWidth": img_w
+                }
+                with open(os.path.join(output_folder, f"{clean_base_name}.json"), "w", encoding="utf-8") as f:
+                    json.dump(label_data, f, indent=2, ensure_ascii=False)
+
             elif format_selected == "CVAT":
                 root = ET.Element("annotations")
-                img_tag = ET.SubElement(root, "image", {"id": str(img_id), "name": clean_image_name, "width": str(img_w), "height": str(img_h)})
-                for a in valid_annotations:
+                img_tag = ET.SubElement(root, "image", {
+                    "id": str(img_id), "name": clean_image_name, 
+                    "width": str(img_w), "height": str(img_h)
+                })
+                for ann in current_annotations:
                     ET.SubElement(img_tag, "box", {
-                        "label": a["label"], "xtl": str(a["points"][0][0]), "ytl": str(a["points"][0][1]),
-                        "xbr": str(a["points"][1][0]), "ybr": str(a["points"][1][1])
+                        "label": ann["label"],
+                        "xtl": str(ann["bbox"][0]), "ytl": str(ann["bbox"][1]),
+                        "xbr": str(ann["bbox"][2]), "ybr": str(ann["bbox"][3])
                     })
                 xml_str = minidom.parseString(ET.tostring(root)).toprettyxml(indent="  ")
-                with open(os.path.join(output_folder, clean_image_name.replace(".jpg", ".xml")), "w") as f:
+                with open(os.path.join(output_folder, f"{clean_base_name}.xml"), "w") as f:
                     f.write(xml_str)
 
-            # --- EXPORTAÇÃO LABEL STUDIO ---
             elif format_selected == "LabelStudio":
                 ls_results = []
-                for a in valid_annotations:
-                    x, y = (a["points"][0][0] / img_w) * 100, (a["points"][0][1] / img_h) * 100
-                    w, h = ((a["points"][1][0] - a["points"][0][0]) / img_w) * 100, ((a["points"][1][1] - a["points"][0][1]) / img_h) * 100
+                for ann in current_annotations:
+                    x, y = (ann["bbox"][0] / img_w) * 100, (ann["bbox"][1] / img_h) * 100
+                    w, h = ((ann["bbox"][2] - ann["bbox"][0]) / img_w) * 100, ((ann["bbox"][3] - ann["bbox"][1]) / img_h) * 100
                     ls_results.append({
                         "from_name": "label", "to_name": "image", "type": "rectanglelabels",
-                        "value": {"x": x, "y": y, "width": w, "height": h, "rectanglelabels": [a["label"]]}
+                        "value": {"x": x, "y": y, "width": w, "height": h, "rectanglelabels": [ann["label"]]}
                     })
-                with open(os.path.join(output_folder, clean_image_name.replace(".jpg", "_ls.json")), "w") as f:
-                    json.dump([{"data": {"image": clean_image_name}, "annotations": [{"result": ls_results}]}], f, indent=4)
-
-            # --- ACUMULAR COCO ---
-            elif format_selected == "COCO":
-                for a in valid_annotations:
-                    w, h = a["points"][1][0] - a["points"][0][0], a["points"][1][1] - a["points"][0][1]
-                    coco_output["annotations"].append({
-                        "id": ann_id_counter, "image_id": img_id, "category_id": target_classes.index(a["label"]),
-                        "bbox": [round(a["points"][0][0], 2), round(a["points"][0][1], 2), round(w, 2), round(h, 2)],
-                        "area": round(w * h, 2), "iscrowd": 0
-                    })
-                    ann_id_counter += 1
+                with open(os.path.join(output_folder, f"{clean_base_name}_ls.json"), "w") as f:
+                    json.dump([{"data": {"image": clean_image_name}, "annotations": [{"result": ls_results}]}], f, indent=2)
 
         if format_selected == "COCO":
             with open(os.path.join(output_folder, "_annotations.coco.json"), "w") as f:
                 json.dump(coco_output, f, indent=4)
 
-        window.after(0, lambda: show_temporary_message(status_label, "Concluído com Sucesso!", "#00FF00"))
+        window.after(0, lambda: show_temporary_message(status_label, "Detecção Concluída!", "#00FF00"))
+        
     except Exception as e:
         window.after(0, lambda: show_temporary_message(status_label, f"Erro: {str(e)}", "#FF0000"))
 
 def open_annotator_bb_window(master):
     window = tk.Toplevel(master)
     window.title("FilleDivvy - Bounding Box")
-    window.geometry("600x800")
+    window.geometry("600x850") # Aumentado levemente para caber o campo sem cortar
     window.configure(bg="#282C34")
 
     font_label = ("Arial", 12, "bold")
@@ -164,6 +221,13 @@ def open_annotator_bb_window(master):
     listbox = tk.Listbox(window, selectmode=tk.MULTIPLE, width=50, height=10)
     for c in COCO_CLASSES: listbox.insert(tk.END, c)
     listbox.pack()
+
+    # --- NOVO CAMPO: CONFIANÇA ---
+    tk.Label(window, text="Confiança do Modelo (0.0 a 1.0):", font=font_label, bg="#282C34", fg="white").pack(pady=(15,5))
+    e_conf = tk.Entry(window, width=10)
+    e_conf.insert(0, "0.45") 
+    e_conf.pack()
+    # -----------------------------
 
     tk.Label(window, text="Pasta de Saída:", font=font_label, bg="#282C34", fg="white").pack(pady=(15,5))
     entry_out = tk.Entry(window, width=55); entry_out.pack()
@@ -181,4 +245,4 @@ def open_annotator_bb_window(master):
     status_label.pack(pady=20)
 
     tk.Button(window, text="INICIAR PROCESSO", bg="#4CAF50", fg="white", font=("Arial", 12, "bold"), width=25, 
-              command=lambda: run_in_thread(entry_img, listbox, entry_out, fmt_var, status_label, window)).pack(pady=10)
+              command=lambda: run_in_thread(entry_img, listbox, e_conf, entry_out, fmt_var, status_label, window)).pack(pady=10)
