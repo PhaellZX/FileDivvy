@@ -8,6 +8,10 @@ import threading
 from PIL import Image, ImageOps
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
+import pathlib
+
+temp = pathlib.PosixPath
+pathlib.PosixPath = pathlib.WindowsPath
 
 def select_folder(entry):
     path = filedialog.askdirectory()
@@ -142,17 +146,31 @@ def run_custom_detection(entry_image, entry_model, entry_output, format_var, sta
                             "points": [[round(x1, 2), round(y1, 2)], [round(x2, 2), round(y2, 2)]]
                         })
 
-            # Exportações individuais (LabelMe e LabelStudio)
-            if format_selected == "LabelMe":
+            if format_selected == "LabelMe": 
                 label_data = {
-                    "version": "3.18.0", "flags": {}, "shapes": [],
-                    "imagePath": clean_image_name, "imageData": None, "imageHeight": img_h, "imageWidth": img_w
+                    "version": "3.18.0",
+                    "flags": {},
+                    "shapes": [],
+                    "imagePath": clean_image_name,
+                    "imageData": None,
+                    "imageHeight": img_h,
+                    "imageWidth": img_w,
+                    "lineColor": [0, 255, 0, 128],
+                    "fillColor": [255, 0, 0, 128]
                 }
+
                 for a in valid_annotations:
-                    label_data["shapes"].append({
-                        "label": a["label"], "points": a["points"], "group_id": None,
-                        "shape_type": a["type"], "flags": {}, "line_color": None, "fill_color": None
-                    })
+                    shape = {
+                        "label": a["label"],
+                        "points": a["points"],
+                        "group_id": None,
+                        "shape_type": a["type"],
+                        "flags": {},
+                        "line_color": [0, 255, 0, 128], 
+                        "fill_color": [255, 0, 0, 128]
+                    }
+                    label_data["shapes"].append(shape)
+
                 with open(os.path.join(output_folder, f"{clean_base_name}.json"), "w", encoding="utf-8") as f:
                     json.dump(label_data, f, indent=2, ensure_ascii=False)
 
@@ -181,6 +199,9 @@ def run_custom_detection(entry_image, entry_model, entry_output, format_var, sta
 
         window.after(0, lambda: show_temporary_message(status_label, "Processamento Concluído!", "#00FF00"))
     except Exception as e:
+        import traceback
+        print("ERRO DETALHADO:")
+        traceback.print_exc() 
         window.after(0, lambda: show_temporary_message(status_label, f"Erro: {str(e)}", "#FF0000"))
 
 def open_annotator_custom_window(master):
