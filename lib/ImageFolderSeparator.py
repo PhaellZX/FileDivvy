@@ -11,7 +11,7 @@ def show_temporary_message(status_label, text, color):
 def open_separator_window(master):
     window = tk.Toplevel(master)
     window.title("FileDivvy - Folder Separator")
-    window.geometry("400x600")
+    window.geometry("400x650") 
     window.resizable(False, False)
     window.configure(bg="#282C34")
 
@@ -20,49 +20,52 @@ def open_separator_window(master):
 
     def choose_source_folder():
         folder = filedialog.askdirectory()
-        source_folder_entry.delete(0, tk.END)
-        source_folder_entry.insert(tk.END, folder.replace("/", "\\"))
+        if folder:
+            clean_path = str(folder).replace("/", os.sep)
+            source_folder_entry.delete(0, tk.END)
+            source_folder_entry.insert(tk.END, clean_path)
 
     def choose_destination_folder():
         folder = filedialog.askdirectory()
-        destination_folder_entry.delete(0, tk.END)
-        destination_folder_entry.insert(tk.END, folder.replace("/", "\\"))
-
-    def show_message(message, color):
-        status_label.config(text=message, fg=color)
-        window.after(3000, lambda: status_label.config(text=""))
+        if folder:
+            clean_path = str(folder).replace("/", os.sep)
+            destination_folder_entry.delete(0, tk.END)
+            destination_folder_entry.insert(tk.END, clean_path)
 
     def run_in_thread():
-        Thread(target=background_process).start()
+        Thread(target=background_process, daemon=True).start()
 
     def background_process():
         try:
             source_folder = source_folder_entry.get().replace("\\", "/")
             destination_folder = destination_folder_entry.get().replace("\\", "/")
-            images_per_pack = int(images_per_pack_entry.get())
+            images_per_pack_str = images_per_pack_entry.get().strip()
             pack_name = pack_name_entry.get().strip()
             class_list = classes_text.get("1.0", tk.END).strip().split("\n")
 
-            if not source_folder or not destination_folder or not pack_name or images_per_pack <= 0:
-                raise ValueError("Please fill in all fields correctly.")
+            if not source_folder or not destination_folder or not pack_name or not images_per_pack_str:
+                raise ValueError("Por favor, preencha todos os campos corretamente.")
+
+            images_per_pack = int(images_per_pack_str)
+            if images_per_pack <= 0:
+                raise ValueError("O número de arquivos deve ser maior que zero.")
 
             split_images(source_folder, destination_folder, images_per_pack, pack_name, class_list)
-            window.after(0, lambda: show_temporary_message(status_label,"Processing completed!", "#00FF00"))
+            window.after(0, lambda: show_temporary_message(status_label, "Processamento concluído!", "#00FF00"))
         except Exception as e:
-            window.after(0, lambda: show_temporary_message(status_label,f"Error: {str(e)}", "#FF3333"))
+            error_msg = str(e)
+            window.after(0, lambda: show_temporary_message(status_label, f"Erro: {error_msg}", "#FF3333"))
     
-    # --- FUNÇÃO MODIFICADA ---
     def split_images(source_folder, destination_folder, items_per_pack, pack_name, class_list):
         if not os.path.exists(destination_folder):
             os.makedirs(destination_folder)
 
         classes_file = os.path.join(destination_folder, "classes.txt")
-        with open(classes_file, "w") as f:
+        with open(classes_file, "w", encoding="utf-8") as f:
             for class_name in class_list:
                 if class_name.strip():
                     f.write(class_name.strip() + "\n")
 
-        # Agrupa arquivos por nome base (sem extensão)
         file_groups = {}
         for filename in os.listdir(source_folder):
             file_base_name, file_ext = os.path.splitext(filename)
@@ -70,54 +73,51 @@ def open_separator_window(master):
                 file_groups[file_base_name] = []
             file_groups[file_base_name].append(filename)
 
-        # Converte o dicionário para uma lista de grupos para iterar
         grouped_files_list = list(file_groups.values())
         total_groups = len(grouped_files_list)
 
         if total_groups == 0:
-            raise Exception("No files found in the source folder.")
+            raise Exception("Nenhum arquivo encontrado na pasta de origem.")
 
         for i in range(0, total_groups, items_per_pack):
             current_pack_name = f'{pack_name}_{i // items_per_pack}'
             current_pack_folder = os.path.join(destination_folder, current_pack_name)
-            os.makedirs(current_pack_folder)
+            if not os.path.exists(current_pack_folder):
+                os.makedirs(current_pack_folder)
 
             for j in range(i, min(i + items_per_pack, total_groups)):
-                # Pega o grupo de arquivos (imagem e JSON)
                 group = grouped_files_list[j]
                 for filename in group:
-                    source_path = os.path.join(source_folder, filename)
-                    destination_path = os.path.join(current_pack_folder, filename)
-                    shutil.copy(source_path, destination_path)
+                    shutil.copy(os.path.join(source_folder, filename), 
+                                os.path.join(current_pack_folder, filename))
             
             shutil.copy(classes_file, current_pack_folder)
-    # --- FIM DA FUNÇÃO MODIFICADA ---
 
-    # Window components
-    tk.Label(window, text="Folder Files Separator", bg="#282C34", fg="#FFFFFF", font=("Arial", 16, "bold")).pack(pady=10)
+    tk.Label(window, text="Separador de Arquivos", bg="#282C34", fg="#FFFFFF", font=("Arial", 16, "bold")).pack(pady=10)
 
-    create_label(window, "Source Folder:").pack()
+    create_label(window, "Pasta de Origem:").pack()
     source_folder_entry = tk.Entry(window, width=40, font=("Arial", 12))
     source_folder_entry.pack()
-    tk.Button(window, text="Select", command=choose_source_folder, font=("Arial", 12, "bold"), bg="#000033", fg="#FFFFFF").pack()
+    tk.Button(window, text="Selecionar", command=choose_source_folder, font=("Arial", 10, "bold"), bg="#000033", fg="#FFFFFF").pack(pady=5)
 
-    create_label(window, "Destination Folder:").pack()
+    create_label(window, "Pasta de Destino:").pack()
     destination_folder_entry = tk.Entry(window, width=40, font=("Arial", 12))
     destination_folder_entry.pack()
-    tk.Button(window, text="Select", command=choose_destination_folder, font=("Arial", 12, "bold"), bg="#000033", fg="#FFFFFF").pack()
+    tk.Button(window, text="Selecionar", command=choose_destination_folder, font=("Arial", 10, "bold"), bg="#000033", fg="#FFFFFF").pack(pady=5)
 
-    create_label(window, "Number of Files per Pack:").pack()
+    create_label(window, "Arquivos por Pacote:").pack()
     images_per_pack_entry = tk.Entry(window, width=10, font=("Arial", 12))
     images_per_pack_entry.pack()
 
-    create_label(window, "Folder Name:").pack()
+    create_label(window, "Nome da Pasta (Prefixo):").pack()
     pack_name_entry = tk.Entry(window, width=40, font=("Arial", 12))
     pack_name_entry.pack()
 
-    create_label(window, "Classes (one per line):").pack()
-    classes_text = tk.Text(window, height=10, width=40, font=("Arial", 12))
+    create_label(window, "Classes (uma por linha):").pack()
+    classes_text = tk.Text(window, height=8, width=40, font=("Arial", 12))
     classes_text.pack()
 
-    tk.Button(window, text="Generate Folders!", command=run_in_thread, font=("Arial", 12, "bold"), bg="#000033", fg="#FFFFFF").pack(pady=10)
-    status_label = tk.Label(window, text="", bg="#282C34", font=("Arial", 12, "bold"))
+    tk.Button(window, text="GERAR PASTAS!", command=run_in_thread, font=("Arial", 12, "bold"), bg="#4CAF50", fg="#FFFFFF", width=25).pack(pady=15)
+    
+    status_label = tk.Label(window, text="", bg="#282C34", font=("Arial", 11, "bold"))
     status_label.pack()
