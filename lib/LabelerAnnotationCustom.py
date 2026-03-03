@@ -62,102 +62,101 @@ def run_custom_detection(entry_image, entry_model, entry_output, format_var, sta
         model = YOLO(model_path)
         is_seg = "segment" in model.task 
         
+        # Estrutura COCO Inicial
         coco_output = {"images": [], "annotations": [], "categories": []}
         for id_cls, name in model.names.items():
             coco_output["categories"].append({"id": id_cls, "name": name, "supercategory": "none"})
 
-        cvat_root = ET.Element("annotations")
-        ET.SubElement(cvat_root, "version").text = "1.1"
-
         files = [f for f in os.listdir(image_folder) if f.lower().endswith(('.jpg', '.png', '.jpeg'))]
+        ann_id_counter = 0
 
         for img_id, file_name in enumerate(files):
             raw_path = os.path.join(image_folder, file_name)
             clean_base_name = os.path.splitext(file_name)[0]
-            original_ext = os.path.splitext(file_name)[1]
-            clean_image_name = f"{clean_base_name}{original_ext}"
+            clean_image_name = f"{clean_base_name}{os.path.splitext(file_name)[1]}"
             save_path = os.path.join(output_folder, clean_image_name)
 
             with Image.open(raw_path) as img:
-                img = ImageOps.exif_transpose(img)
-                img = img.convert("RGB")
+                img = ImageOps.exif_transpose(img).convert("RGB")
                 img.save(save_path, quality=95)
 
             results = model(save_path, conf=conf_value, imgsz=1280)[0]
             img_h, img_w = results.orig_shape
             
+            # Adiciona imagem ao COCO
+            if format_selected == "COCO":
+                coco_output["images"].append({
+                    "id": img_id, "file_name": clean_image_name, 
+                    "width": img_w, "height": img_h
+                })
+
             valid_annotations = []
 
-            # Lógica de Detecção / Segmentação
+            # Coleta de dados
             if is_seg and results.masks is not None:
                 for i, polygon in enumerate(results.masks.xy):
                     cls_id = int(results.boxes.cls[i])
-                    cls_name = model.names[cls_id]
-                    points = [[round(float(x), 2), round(float(y), 2)] for x, y in polygon]
-                    valid_annotations.append({"label": cls_name, "points": points, "type": "polygon"})
+                    pts = [[round(float(x), 2), round(float(y), 2)] for x, y in polygon]
+                    
+                    if format_selected == "COCO":
+                        flat_pts = [c for p in pts for c in p]
+                        x_coords, y_coords = zip(*pts)
+                        min_x, min_y = min(x_coords), min(y_coords)
+                        bw, bh = max(x_coords) - min_x, max(y_coords) - min_y
+                        coco_output["annotations"].append({
+                            "id": ann_id_counter, "image_id": img_id, "category_id": cls_id,
+                            "segmentation": [flat_pts], "bbox": [min_x, min_y, bw, bh],
+                            "area": bw * bh, "iscrowd": 0
+                        })
+                        ann_id_counter += 1
+                    else:
+                        valid_annotations.append({"label": model.names[cls_id], "points": pts, "type": "polygon"})
             
             elif results.boxes is not None:
                 for box in results.boxes:
                     cls_id = int(box.cls[0])
-                    cls_name = model.names[cls_id]
                     x1, y1, x2, y2 = box.xyxy[0].tolist()
-                    valid_annotations.append({
-                        "label": cls_name, "type": "rectangle",
-                        "points": [[round(x1, 2), round(y1, 2)], [round(x2, 2), round(y2, 2)]]
-                    })
+                    bw, bh = x2 - x1, y2 - y1
 
-            # --- EXPORTAÇÃO LABELME 5.X (MODERNA - Sem erro de lineColor) ---
-            if format_selected == "LabelMe_5x":
-                label_data = {
-                    "version": "5.11.2",
-                    "flags": {},
-                    "shapes": [],
-                    "imagePath": clean_image_name,
-                    "imageData": None,
-                    "imageHeight": img_h,
-                    "imageWidth": img_w
-                }
+                    if format_selected == "COCO":
+                        coco_output["annotations"].append({
+                            "id": ann_id_counter, "image_id": img_id, "category_id": cls_id,
+                            "bbox": [x1, y1, bw, bh], "area": bw * bh, "iscrowd": 0
+                        })
+                        ann_id_counter += 1
+                    else:
+                        valid_annotations.append({
+                            "label": model.names[cls_id], "type": "rectangle",
+                            "points": [[round(x1, 2), round(y1, 2)], [round(x2, 2), round(y2, 2)]]
+                        })
+
+            # Salva arquivos individuais se for LabelMe
+            if "LabelMe" in format_selected:
+                ver = "5.11.2" if "5x" in format_selected else "3.18.0"
+                label_data = {"version": ver, "flags": {}, "shapes": [], "imagePath": clean_image_name, 
+                              "imageData": None, "imageHeight": img_h, "imageWidth": img_w}
                 for a in valid_annotations:
-                    label_data["shapes"].append({
-                        "label": a["label"], "points": a["points"],
-                        "group_id": None, "shape_type": a["type"], "flags": {}
-                    })
+                    label_data["shapes"].append({"label": a["label"], "points": a["points"], "group_id": None, "shape_type": a["type"], "flags": {}})
+                
                 with open(os.path.join(output_folder, f"{clean_base_name}.json"), "w", encoding="utf-8") as f:
                     json.dump(label_data, f, indent=2, ensure_ascii=False)
 
-            # --- EXPORTAÇÃO LABELME 3.X (ANTIGA) ---
-            elif format_selected == "LabelMe_3x":
-                label_data = {
-                    "version": "3.18.0",
-                    "flags": {},
-                    "shapes": [],
-                    "imagePath": clean_image_name,
-                    "imageData": None, "imageHeight": img_h, "imageWidth": img_w,
-                    "lineColor": [0, 255, 0, 128], "fillColor": [255, 0, 0, 128]
-                }
-                for a in valid_annotations:
-                    label_data["shapes"].append({
-                        "label": a["label"], "points": a["points"],
-                        "group_id": None, "shape_type": a["type"], "flags": {},
-                        "line_color": [0, 255, 0, 128], "fill_color": [255, 0, 0, 128]
-                    })
-                with open(os.path.join(output_folder, f"{clean_base_name}.json"), "w", encoding="utf-8") as f:
-                    json.dump(label_data, f, indent=2, ensure_ascii=False)
+        # SALVAMENTO FINAL DO COCO (Único arquivo para todas as imagens)
+        if format_selected == "COCO":
+            with open(os.path.join(output_folder, "_annotations.coco.json"), "w", encoding="utf-8") as f:
+                json.dump(coco_output, f, indent=4)
 
         window.after(0, lambda: show_temporary_message(status_label, "Processamento Concluído!", "#00FF00"))
     
     except Exception as e:
-        import traceback
-        error_msg = str(e)
-        traceback.print_exc() 
-        window.after(0, lambda: show_temporary_message(status_label, f"Erro: {error_msg}", "#FF0000"))
+        window.after(0, lambda: show_temporary_message(status_label, f"Erro: {str(e)}", "#FF0000"))
 
 def open_annotator_custom_window(master):
+    # (Mantido igual à sua UI)
     window = tk.Toplevel(master)
     window.title("FileDivvy - Custom Model")
     window.geometry("600x780")
     window.configure(bg="#282C34")
-
     font_label = ("Arial", 12, "bold")
     
     tk.Label(window, text="Pasta de Imagens (Input):", font=font_label, bg="#282C34", fg="white").pack(pady=(20,5))
@@ -179,12 +178,7 @@ def open_annotator_custom_window(master):
     fmt_var = tk.StringVar(value="LabelMe_5x")
     f_radio = tk.Frame(window, bg="#282C34"); f_radio.pack()
     
-    opts = [
-        ("LabelMe 5.x", "LabelMe_5x"), 
-        ("LabelMe 3.x", "LabelMe_3x"), 
-        ("COCO", "COCO"), 
-        ("CVAT", "CVAT")
-    ]
+    opts = [("LabelMe 5.x", "LabelMe_5x"), ("LabelMe 3.x", "LabelMe_3x"), ("COCO", "COCO"), ("CVAT", "CVAT")]
     for text, val in opts:
         tk.Radiobutton(f_radio, text=text, variable=fmt_var, value=val, bg="#282C34", fg="white", 
                        font=("Arial", 10), selectcolor="#282C34").pack(anchor=tk.W)
