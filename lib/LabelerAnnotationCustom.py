@@ -60,12 +60,14 @@ def run_custom_detection(entry_image, entry_model, entry_output, format_var, sta
         format_selected = format_var.get()
 
         model = YOLO(model_path)
+        
+        import torch
+        device = 0 if torch.cuda.is_available() else 'cpu'
+        
         is_seg = "segment" in model.task 
         
-        # Estruturas de Exportação
         coco_output = {"images": [], "annotations": [], "categories": []}
         
-        # Início XML CVAT
         cvat_root = ET.Element("annotations")
         ET.SubElement(cvat_root, "version").text = "1.1"
         meta = ET.SubElement(cvat_root, "meta")
@@ -73,9 +75,9 @@ def run_custom_detection(entry_image, entry_model, entry_output, format_var, sta
         labels_node = ET.SubElement(task, "labels")
 
         for id_cls, name in model.names.items():
-            # Categorias COCO
+            
             coco_output["categories"].append({"id": id_cls, "name": name, "supercategory": "none"})
-            # Labels CVAT
+            
             label_node = ET.SubElement(labels_node, "label")
             ET.SubElement(label_node, "name").text = name
 
@@ -92,10 +94,11 @@ def run_custom_detection(entry_image, entry_model, entry_output, format_var, sta
                 img = ImageOps.exif_transpose(img).convert("RGB")
                 img.save(save_path, quality=95)
 
-            results = model(save_path, conf=conf_value, imgsz=1280)[0]
+            
+            results = model(save_path, conf=conf_value, imgsz=1280, device=device)[0]
             img_h, img_w = results.orig_shape
             
-            # Elemento de imagem CVAT
+            
             cvat_img_node = None
             if format_selected == "CVAT":
                 cvat_img_node = ET.SubElement(cvat_root, "image", id=str(img_id), name=clean_image_name, 
@@ -109,7 +112,7 @@ def run_custom_detection(entry_image, entry_model, entry_output, format_var, sta
 
             valid_annotations = []
 
-            # Coleta de dados (Segmentação)
+            
             if is_seg and results.masks is not None:
                 for i, polygon in enumerate(results.masks.xy):
                     cls_id = int(results.boxes.cls[i])
@@ -135,7 +138,7 @@ def run_custom_detection(entry_image, entry_model, entry_output, format_var, sta
                     else:
                         valid_annotations.append({"label": label_name, "points": pts, "type": "polygon"})
             
-            # Coleta de dados (Detection)
+            
             elif results.boxes is not None:
                 for box in results.boxes:
                     cls_id = int(box.cls[0])
@@ -160,7 +163,7 @@ def run_custom_detection(entry_image, entry_model, entry_output, format_var, sta
                             "points": [[round(x1, 2), round(y1, 2)], [round(x2, 2), round(y2, 2)]]
                         })
 
-            # LabelMe
+            
             if "LabelMe" in format_selected:
                 ver = "5.11.2" if "5x" in format_selected else "3.18.0"
                 label_data = {"version": ver, "flags": {}, "shapes": [], "imagePath": clean_image_name, 
@@ -171,7 +174,7 @@ def run_custom_detection(entry_image, entry_model, entry_output, format_var, sta
                 with open(os.path.join(output_folder, f"{clean_base_name}.json"), "w", encoding="utf-8") as f:
                     json.dump(label_data, f, indent=2, ensure_ascii=False)
 
-        # SALVAMENTOS FINAIS (Arquivos únicos)
+        
         if format_selected == "COCO":
             with open(os.path.join(output_folder, "_annotations.coco.json"), "w", encoding="utf-8") as f:
                 json.dump(coco_output, f, indent=4)
@@ -185,8 +188,10 @@ def run_custom_detection(entry_image, entry_model, entry_output, format_var, sta
     
     except Exception as e:
         import traceback
-        print(traceback.format_exc()) # Útil para debug
-        window.after(0, lambda: show_temporary_message(status_label, f"Erro: {str(e)}", "#FF0000"))
+        print(traceback.format_exc()) 
+        
+        erro_msg = str(e)
+        window.after(0, lambda: show_temporary_message(status_label, f"Erro: {erro_msg}", "#FF0000"))
 
 def open_annotator_custom_window(master):
     window = tk.Toplevel(master)
